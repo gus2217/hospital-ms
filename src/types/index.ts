@@ -7,6 +7,8 @@ export enum UserRole {
   Doctor = 'Doctor',
   Pharmacist = 'Pharmacist',
   Receptionist = 'Receptionist',
+  Nurse = 'Nurse',
+  // Kept for the patient data model — patient records still carry this role.
   Patient = 'Patient',
 }
 
@@ -37,6 +39,8 @@ export interface User {
   firstName: string
   lastName: string
   email: string
+  /** Plain-text password for mock/local authentication. */
+  password: string
   role: UserRole
   phoneNumber?: string
 }

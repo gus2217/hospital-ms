@@ -70,12 +70,12 @@ interface HospitalState {
   payments: Payment[]
 
   // ---- Patients ----
-  addPatient: (p: Omit<Patient, 'id' | 'role'>) => Patient
+  addPatient: (p: Omit<Patient, 'id' | 'role' | 'password'>) => Patient
   updatePatient: (id: string, patch: Partial<Patient>) => void
   deletePatient: (id: string) => void
 
   // ---- Doctors ----
-  addDoctor: (d: Omit<Doctor, 'id' | 'role'>) => Doctor
+  addDoctor: (d: Omit<Doctor, 'id' | 'role' | 'password'>) => Doctor
   updateDoctor: (id: string, patch: Partial<Doctor>) => void
   deleteDoctor: (id: string) => void
 
@@ -137,7 +137,12 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
 
   // ---------------- Patients ----------------
   addPatient: (p) => {
-    const patient: Patient = { ...p, id: nextId('PAT', get().patients), role: UserRole.Patient }
+    const patient: Patient = {
+      ...p,
+      id: nextId('PAT', get().patients),
+      role: UserRole.Patient,
+      password: 'patient123',
+    }
     set((s) => ({ patients: [patient, ...s.patients] }))
     return patient
   },
@@ -152,7 +157,12 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
 
   // ---------------- Doctors ----------------
   addDoctor: (d) => {
-    const doctor: Doctor = { ...d, id: nextId('DOC', get().doctors), role: UserRole.Doctor }
+    const doctor: Doctor = {
+      ...d,
+      id: nextId('DOC', get().doctors),
+      role: UserRole.Doctor,
+      password: 'doctor123',
+    }
     set((s) => ({ doctors: [doctor, ...s.doctors] }))
     return doctor
   },

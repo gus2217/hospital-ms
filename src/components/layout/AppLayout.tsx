@@ -13,6 +13,7 @@ import {
   Users,
   HeartPulse,
   Bell,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -28,22 +29,81 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { useHospitalStore } from '@/store/hospitalStore'
+import { useAuthStore } from '@/store/authStore'
+import { UserRole } from '@/types'
+import { initials } from '@/lib/format'
 import { toast } from 'sonner'
 
-const navigation = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/appointments', label: 'Appointments', icon: CalendarDays },
-  { to: '/patients', label: 'Patients', icon: Users },
-  { to: '/doctors', label: 'Doctors', icon: Stethoscope },
-  { to: '/records', label: 'Medical Records', icon: ClipboardList },
-  { to: '/pharmacy', label: 'Pharmacy', icon: Pill },
-  { to: '/billing', label: 'Billing', icon: CreditCard },
+const ROLE_LABELS: Record<UserRole, string> = {
+  [UserRole.Admin]: 'Administrator',
+  [UserRole.Doctor]: 'Doctor',
+  [UserRole.Pharmacist]: 'Pharmacist',
+  [UserRole.Receptionist]: 'Receptionist',
+  [UserRole.Nurse]: 'Nurse',
+  [UserRole.Patient]: 'Patient',
+}
+
+interface NavItem {
+  to: string
+  label: string
+  icon: LucideIcon
+  roles: UserRole[]
+}
+
+const navigation: NavItem[] = [
+  {
+    to: '/dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Pharmacist, UserRole.Receptionist, UserRole.Nurse],
+  },
+  {
+    to: '/appointments',
+    label: 'Appointments',
+    icon: CalendarDays,
+    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Receptionist, UserRole.Nurse],
+  },
+  {
+    to: '/patients',
+    label: 'Patients',
+    icon: Users,
+    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Receptionist, UserRole.Nurse],
+  },
+  {
+    to: '/doctors',
+    label: 'Doctors',
+    icon: Stethoscope,
+    roles: [UserRole.Admin, UserRole.Doctor],
+  },
+  {
+    to: '/records',
+    label: 'Medical Records',
+    icon: ClipboardList,
+    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Nurse],
+  },
+  {
+    to: '/pharmacy',
+    label: 'Pharmacy',
+    icon: Pill,
+    roles: [UserRole.Admin, UserRole.Pharmacist],
+  },
+  {
+    to: '/billing',
+    label: 'Billing',
+    icon: CreditCard,
+    roles: [UserRole.Admin, UserRole.Receptionist],
+  },
 ]
 
 function Sidebar() {
+  const currentUser = useAuthStore((s) => s.currentUser)
   const lowStockCount = useHospitalStore((s) =>
     s.drugs.filter((d) => d.stockQuantity <= d.reorderLevel).length,
   )
+
+  const visibleNav = currentUser
+    ? navigation.filter((item) => item.roles.includes(currentUser.role))
+    : []
 
   return (
     <aside className="bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-40 hidden w-64 flex-col lg:flex">
@@ -60,7 +120,7 @@ function Sidebar() {
       <Separator className="bg-sidebar-border/60" />
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {navigation.map(({ to, label, icon: Icon }) => (
+        {visibleNav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -100,7 +160,9 @@ function Sidebar() {
 
 function Topbar() {
   const navigate = useNavigate()
+  const currentUser = useAuthStore((s) => s.currentUser)
   const resetDemo = useHospitalStore((s) => s.resetDemo)
+  const logout = useAuthStore((s) => s.logout)
 
   const today = new Date().toLocaleDateString('en-KE', {
     weekday: 'long',
@@ -108,6 +170,12 @@ function Topbar() {
     month: 'long',
     year: 'numeric',
   })
+
+  const handleSignOut = () => {
+    logout()
+    toast.success('Signed out. See you soon!')
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/80 px-6 backdrop-blur">
@@ -130,12 +198,18 @@ function Topbar() {
             <button className="flex cursor-pointer items-center gap-3 rounded-full py-1 pl-1 pr-3 transition-colors hover:bg-accent">
               <Avatar className="size-8">
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  MW
+                  {currentUser ? initials(currentUser.firstName, currentUser.lastName) : '—'}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden text-left sm:block">
-                <p className="text-sm leading-tight font-semibold">Mary Wambui</p>
-                <p className="text-muted-foreground text-[11px] leading-tight">Administrator</p>
+                <p className="text-sm leading-tight font-semibold">
+                  {currentUser
+                    ? `${currentUser.firstName} ${currentUser.lastName}`
+                    : 'Not signed in'}
+                </p>
+                <p className="text-muted-foreground text-[11px] leading-tight">
+                  {currentUser ? ROLE_LABELS[currentUser.role] : '—'}
+                </p>
               </div>
             </button>
           </DropdownMenuTrigger>
@@ -143,7 +217,7 @@ function Topbar() {
             <DropdownMenuLabel>
               <div className="flex items-center gap-2">
                 <CircleUserRound className="size-4" />
-                mary.wambui@medicore.health
+                {currentUser?.email ?? '—'}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -156,13 +230,7 @@ function Topbar() {
               <RotateCcw />
               Reset demo data
             </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => {
-                toast.info('Signed out (demo). See you soon!')
-                navigate('/dashboard')
-              }}
-            >
+            <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
               <LogOut />
               Sign out
             </DropdownMenuItem>

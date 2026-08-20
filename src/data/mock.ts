@@ -23,6 +23,7 @@ export const mockPatients: Patient[] = [
     firstName: 'Amina',
     lastName: 'Wanjiru',
     email: 'amina.wanjiru@example.com',
+    password: 'patient123',
     role: UserRole.Patient,
     phoneNumber: '+254711223344',
     dateOfBirth: '1990-04-12',
@@ -34,6 +35,7 @@ export const mockPatients: Patient[] = [
     firstName: 'Brian',
     lastName: 'Otieno',
     email: 'brian.otieno@example.com',
+    password: 'patient123',
     role: UserRole.Patient,
     phoneNumber: '+254733445566',
     dateOfBirth: '1985-09-03',
@@ -44,6 +46,7 @@ export const mockPatients: Patient[] = [
     firstName: 'Cynthia',
     lastName: 'Muthoni',
     email: 'cynthia.muthoni@example.com',
+    password: 'patient123',
     role: UserRole.Patient,
     phoneNumber: '+254755667788',
     dateOfBirth: '1998-01-27',
@@ -55,6 +58,7 @@ export const mockPatients: Patient[] = [
     firstName: 'David',
     lastName: 'Kipchoge',
     email: 'david.kipchoge@example.com',
+    password: 'patient123',
     role: UserRole.Patient,
     phoneNumber: '+254777889900',
     dateOfBirth: '1978-11-19',
@@ -66,6 +70,7 @@ export const mockPatients: Patient[] = [
     firstName: 'Esther',
     lastName: 'Akinyi',
     email: 'esther.akinyi@example.com',
+    password: 'patient123',
     role: UserRole.Patient,
     phoneNumber: '+254700112233',
     dateOfBirth: '2001-06-30',
@@ -76,6 +81,7 @@ export const mockPatients: Patient[] = [
     firstName: 'Francis',
     lastName: 'Mwangi',
     email: 'francis.mwangi@example.com',
+    password: 'patient123',
     role: UserRole.Patient,
     phoneNumber: '+254722334455',
     dateOfBirth: '1969-02-14',
@@ -90,6 +96,7 @@ export const mockDoctors: Doctor[] = [
     firstName: 'Grace',
     lastName: 'Njeri',
     email: 'grace.njeri@medicore.health',
+    password: 'doctor123',
     role: UserRole.Doctor,
     phoneNumber: '+254711000111',
     specialization: 'Cardiology',
@@ -100,6 +107,7 @@ export const mockDoctors: Doctor[] = [
     firstName: 'James',
     lastName: 'Kariuki',
     email: 'james.kariuki@medicore.health',
+    password: 'doctor123',
     role: UserRole.Doctor,
     phoneNumber: '+254722000222',
     specialization: 'General Medicine',
@@ -110,6 +118,7 @@ export const mockDoctors: Doctor[] = [
     firstName: 'Lilian',
     lastName: 'Achieng',
     email: 'lilian.achieng@medicore.health',
+    password: 'doctor123',
     role: UserRole.Doctor,
     phoneNumber: '+254733000333',
     specialization: 'Pediatrics',
@@ -120,6 +129,7 @@ export const mockDoctors: Doctor[] = [
     firstName: 'Samuel',
     lastName: 'Kilonzo',
     email: 'samuel.kilonzo@medicore.health',
+    password: 'doctor123',
     role: UserRole.Doctor,
     phoneNumber: '+254744000444',
     specialization: 'Dermatology',
@@ -133,6 +143,7 @@ export const mockStaff: User[] = [
     firstName: 'Mary',
     lastName: 'Wambui',
     email: 'mary.wambui@medicore.health',
+    password: 'admin123',
     role: UserRole.Admin,
     phoneNumber: '+254700111222',
   },
@@ -141,6 +152,7 @@ export const mockStaff: User[] = [
     firstName: 'Peter',
     lastName: 'Ochieng',
     email: 'peter.ochieng@medicore.health',
+    password: 'pharmacy123',
     role: UserRole.Pharmacist,
     phoneNumber: '+254711222333',
   },
@@ -149,8 +161,27 @@ export const mockStaff: User[] = [
     firstName: 'Susan',
     lastName: 'Chebet',
     email: 'susan.chebet@medicore.health',
+    password: 'reception123',
     role: UserRole.Receptionist,
     phoneNumber: '+254722333444',
+  },
+  {
+    id: 'STF-004',
+    firstName: 'Naomi',
+    lastName: 'Akoth',
+    email: 'naomi.akoth@medicore.health',
+    password: 'nurse123',
+    role: UserRole.Nurse,
+    phoneNumber: '+254733444555',
+  },
+  {
+    id: 'STF-005',
+    firstName: 'Faith',
+    lastName: 'Moraa',
+    email: 'faith.moraa@medicore.health',
+    password: 'nurse123',
+    role: UserRole.Nurse,
+    phoneNumber: '+254744555666',
   },
 ]
 
@@ -590,5 +621,46 @@ export const mockPayments: Payment[] = [
     paymentDate: daysFromNow(-1, 13, 15),
     paymentMethod: 'Card',
     transactionId: 'CRD-5510KK',
+  },
+]
+
+/**
+ * Demo sign-in credentials shown on the Login page (one per staff role).
+ */
+export const DEMO_CREDENTIALS: {
+  role: UserRole
+  label: string
+  email: string
+  password: string
+}[] = [
+  {
+    role: UserRole.Admin,
+    label: 'Administrator',
+    email: 'mary.wambui@medicore.health',
+    password: 'admin123',
+  },
+  {
+    role: UserRole.Doctor,
+    label: 'Doctor — Cardiology',
+    email: 'grace.njeri@medicore.health',
+    password: 'doctor123',
+  },
+  {
+    role: UserRole.Pharmacist,
+    label: 'Pharmacist',
+    email: 'peter.ochieng@medicore.health',
+    password: 'pharmacy123',
+  },
+  {
+    role: UserRole.Receptionist,
+    label: 'Receptionist',
+    email: 'susan.chebet@medicore.health',
+    password: 'reception123',
+  },
+  {
+    role: UserRole.Nurse,
+    label: 'Nurse',
+    email: 'naomi.akoth@medicore.health',
+    password: 'nurse123',
   },
 ]

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ import {
 } from '@/components/ui/select'
 import { useHospitalStore } from '@/store/hospitalStore'
 import type { Appointment, PrescriptionItem } from '@/types'
+import { TriageLevel } from '@/types'
 import { formatCurrency } from '@/lib/format'
 import { CONSULTATION_FEE_OPTIONS } from '@/lib/fees'
 import { fullName, useEntityMaps } from '@/lib/useEntities'
@@ -62,6 +64,13 @@ export function ConsultationDialog({
 }) {
   const { doctorById, patientById, drugs } = useEntityMaps()
   const completeConsultation = useHospitalStore((s) => s.completeConsultation)
+  const triageRecords = useHospitalStore((s) => s.triageRecords)
+
+  const latestTriage = appointment
+    ? triageRecords
+        .filter((t) => t.patientId === appointment.patientId)
+        .sort((a, b) => new Date(b.triagedAt).getTime() - new Date(a.triagedAt).getTime())[0]
+    : undefined
 
   const [diagnosis, setDiagnosis] = useState('')
   const [treatmentPlan, setTreatmentPlan] = useState('')
@@ -143,6 +152,45 @@ export function ConsultationDialog({
         </DialogHeader>
 
         <div className="grid max-h-[55vh] gap-4 overflow-y-auto pr-1">
+          {latestTriage && (
+            <div className="rounded-lg border-l-4 border-l-amber-400 bg-muted/30 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  Triage vitals
+                </p>
+                <Badge
+                  variant={
+                    latestTriage.triageLevel === TriageLevel.Emergency ||
+                    latestTriage.triageLevel === TriageLevel.Urgent
+                      ? 'destructive'
+                      : latestTriage.triageLevel === TriageLevel.SemiUrgent
+                        ? 'warning'
+                        : 'success'
+                  }
+                >
+                  {latestTriage.triageLevel}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  ['BP', `${latestTriage.systolicBP}/${latestTriage.diastolicBP}`],
+                  ['Temp', `${latestTriage.temperatureC}°C`],
+                  ['HR', `${latestTriage.heartRate} bpm`],
+                  ['RR', `${latestTriage.respiratoryRate}/min`],
+                  ['SpO₂', `${latestTriage.oxygenSat}%`],
+                  ['Wt/Ht', `${latestTriage.weightKg}kg / ${latestTriage.heightCm}cm`],
+                ].map(([label, value]) => (
+                  <span
+                    key={label}
+                    className="rounded-md bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                  >
+                    {label} <span className="text-foreground">{value}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-2">
             <Label htmlFor="cx-diagnosis">Diagnosis</Label>
             <Input

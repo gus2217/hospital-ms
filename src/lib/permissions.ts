@@ -51,6 +51,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_BILLING,
     Permission.RECORD_PAYMENT,
     Permission.MANAGE_INVOICES,
+    Permission.PERFORM_TRIAGE,
   ],
   [UserRole.Nurse]: [
     Permission.VIEW_DASHBOARD,
@@ -62,6 +63,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_WARDS,
     Permission.MANAGE_ADMISSIONS,
     Permission.UPDATE_NURSING_NOTES,
+    Permission.PERFORM_TRIAGE,
   ],
   [UserRole.LabTechnician]: [
     Permission.VIEW_DASHBOARD,
@@ -98,12 +100,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_BILLING,
     Permission.RECORD_PAYMENT,
     Permission.MANAGE_INVOICES,
+    Permission.VIEW_REPORTS,
   ],
   [UserRole.CEO]: [
     Permission.VIEW_DASHBOARD,
     Permission.VIEW_PATIENTS,
     Permission.VIEW_PATIENT_360,
     Permission.VIEW_BILLING,
+    Permission.VIEW_REPORTS,
   ],
   [UserRole.Patient]: [Permission.VIEW_DASHBOARD, Permission.PATIENT_SELF_SERVICE],
 }
@@ -152,6 +156,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.VIEW_WARDS]: 'View wards',
   [Permission.MANAGE_ADMISSIONS]: 'Manage admissions',
   [Permission.UPDATE_NURSING_NOTES]: 'Update nursing notes',
+  [Permission.PERFORM_TRIAGE]: 'Perform triage',
   [Permission.MANAGE_TREATMENT_PLANS]: 'Manage treatment plans',
   [Permission.VIEW_STAFF]: 'View staff',
   [Permission.MANAGE_STAFF]: 'Manage staff',

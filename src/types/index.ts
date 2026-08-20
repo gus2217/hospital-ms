@@ -52,6 +52,7 @@ export enum Permission {
   MANAGE_ADMISSIONS = 'MANAGE_ADMISSIONS',
   UPDATE_NURSING_NOTES = 'UPDATE_NURSING_NOTES',
   MANAGE_TREATMENT_PLANS = 'MANAGE_TREATMENT_PLANS',
+  PERFORM_TRIAGE = 'PERFORM_TRIAGE',
   VIEW_STAFF = 'VIEW_STAFF',
   MANAGE_STAFF = 'MANAGE_STAFF',
   MANAGE_LEAVE = 'MANAGE_LEAVE',
@@ -74,6 +75,33 @@ export enum AdmissionStatus {
   Active = 'Active',
   Discharged = 'Discharged',
   Cancelled = 'Cancelled',
+}
+
+export enum TriageLevel {
+  Emergency = 'Emergency',
+  Urgent = 'Urgent',
+  SemiUrgent = 'SemiUrgent',
+  NonUrgent = 'NonUrgent',
+}
+
+export interface TriageRecord {
+  id: string
+  patientId: string
+  appointmentId?: string
+  triagedAt: string
+  /** Staff id of the nurse/officer who performed triage. */
+  triagedBy?: string
+  systolicBP: number
+  diastolicBP: number
+  temperatureC: number
+  heartRate: number
+  respiratoryRate: number
+  weightKg: number
+  heightCm: number
+  oxygenSat: number
+  chiefComplaint: string
+  notes?: string
+  triageLevel: TriageLevel
 }
 
 export enum AppointmentStatus {

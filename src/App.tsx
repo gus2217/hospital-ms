@@ -21,6 +21,7 @@ import Reports from '@/pages/Reports'
 import AuditLogs from '@/pages/AuditLogs'
 import PharmacyTracking from '@/pages/PharmacyTracking'
 import Patient360 from '@/pages/Patient360'
+import Triage from '@/pages/Triage'
 import Consultation from '@/pages/Consultation'
 import PatientPortal from '@/pages/PatientPortal'
 
@@ -120,6 +121,14 @@ export default function App() {
             element={
               <RequirePermission permission={Permission.VIEW_CONSULTATION}>
                 <Consultation />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/triage"
+            element={
+              <RequirePermission permission={Permission.PERFORM_TRIAGE}>
+                <Triage />
               </RequirePermission>
             }
           />

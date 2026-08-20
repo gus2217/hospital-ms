@@ -12,6 +12,7 @@ import type {
   Payment,
   Prescription,
   StaffRecord,
+  TriageRecord,
   User,
   Ward,
 } from '@/types'
@@ -36,6 +37,7 @@ import {
   mockPrescriptions,
   mockStaff,
   mockStaffRecords,
+  mockTriageRecords,
   mockWards,
 } from '@/data/mock'
 import { useAuditStore } from '@/store/auditStore'
@@ -112,6 +114,7 @@ interface HospitalState {
   wards: Ward[]
   admissions: Admission[]
   staffRecords: StaffRecord[]
+  triageRecords: TriageRecord[]
 
   // ---- Patients ----
   addPatient: (p: Omit<Patient, 'id' | 'role' | 'password' | 'patientNumber'>) => Patient
@@ -181,6 +184,9 @@ interface HospitalState {
   addStaffRecord: (r: Omit<StaffRecord, 'id'> & { id: string }) => void
   updateStaffRecord: (id: string, patch: Partial<StaffRecord>) => void
 
+  // ---- Triage ----
+  addTriageRecord: (t: Omit<TriageRecord, 'id' | 'triagedAt' | 'triagedBy'>) => TriageRecord
+
   resetDemo: () => void
 }
 
@@ -198,6 +204,7 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
   wards: mockWards,
   admissions: mockAdmissions,
   staffRecords: mockStaffRecords,
+  triageRecords: mockTriageRecords,
 
   // ---------------- Patients ----------------
   addPatient: (p) => {
@@ -694,6 +701,25 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
       staffRecords: s.staffRecords.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     })),
 
+  // ---------------- Triage ----------------
+  addTriageRecord: (t) => {
+    const record: TriageRecord = {
+      ...t,
+      id: nextId('TR', get().triageRecords),
+      triagedAt: new Date().toISOString(),
+      triagedBy: currentUserId(),
+    }
+    set((s) => ({ triageRecords: [record, ...s.triageRecords] }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'TRIAGE_COMPLETED',
+      entityType: 'TriageRecord',
+      entityId: record.id,
+      changes: `${t.patientId} triaged as ${t.triageLevel}`,
+    })
+    return record
+  },
+
   resetDemo: () =>
     set({
       patients: mockPatients,
@@ -709,5 +735,6 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
       wards: mockWards,
       admissions: mockAdmissions,
       staffRecords: mockStaffRecords,
+      triageRecords: mockTriageRecords,
     }),
 }))

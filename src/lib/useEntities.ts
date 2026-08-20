@@ -14,6 +14,7 @@ export function useEntityMaps() {
   const labTests = useHospitalStore((s) => s.labTests)
   const wards = useHospitalStore((s) => s.wards)
   const admissions = useHospitalStore((s) => s.admissions)
+  const triageRecords = useHospitalStore((s) => s.triageRecords)
 
   const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])
   const doctorById = useMemo(() => new Map(doctors.map((d) => [d.id, d])), [doctors])
@@ -44,6 +45,7 @@ export function useEntityMaps() {
     labTests,
     wards,
     admissions,
+    triageRecords,
     patientById,
     doctorById,
     drugById,

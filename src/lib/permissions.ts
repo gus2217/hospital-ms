@@ -25,7 +25,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.ORDER_LAB_TEST,
     Permission.VIEW_WARDS,
     Permission.MANAGE_TREATMENT_PLANS,
-    Permission.VIEW_REPORTS,
   ],
   [UserRole.Pharmacist]: [
     Permission.VIEW_DASHBOARD,
@@ -38,7 +37,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_BILLING,
     Permission.RECORD_PAYMENT,
     Permission.MANAGE_INVOICES,
-    Permission.VIEW_REPORTS,
   ],
   [UserRole.Receptionist]: [
     Permission.VIEW_DASHBOARD,
@@ -50,7 +48,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_BILLING,
     Permission.RECORD_PAYMENT,
     Permission.MANAGE_INVOICES,
-    Permission.VIEW_REPORTS,
   ],
   [UserRole.Nurse]: [
     Permission.VIEW_DASHBOARD,

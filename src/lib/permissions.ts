@@ -11,6 +11,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   [UserRole.Doctor]: [
     Permission.VIEW_DASHBOARD,
     Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
     Permission.VIEW_APPOINTMENTS,
     Permission.MANAGE_APPOINTMENTS,
     Permission.CANCEL_APPOINTMENTS,
@@ -29,6 +30,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   [UserRole.Pharmacist]: [
     Permission.VIEW_DASHBOARD,
     Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
     Permission.VIEW_PHARMACY,
     Permission.MANAGE_INVENTORY,
     Permission.VIEW_DRUG_TRACKING,
@@ -41,6 +43,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   [UserRole.Receptionist]: [
     Permission.VIEW_DASHBOARD,
     Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
     Permission.MANAGE_PATIENTS,
     Permission.VIEW_APPOINTMENTS,
     Permission.MANAGE_APPOINTMENTS,
@@ -52,6 +55,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   [UserRole.Nurse]: [
     Permission.VIEW_DASHBOARD,
     Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
     Permission.VIEW_APPOINTMENTS,
     Permission.MANAGE_APPOINTMENTS,
     Permission.VIEW_MEDICAL_RECORDS,
@@ -62,6 +66,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   [UserRole.LabTechnician]: [
     Permission.VIEW_DASHBOARD,
     Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
     Permission.VIEW_APPOINTMENTS,
     Permission.VIEW_LAB,
     Permission.MANAGE_LAB_TESTS,
@@ -88,6 +93,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.VIEW_DASHBOARD]: 'View dashboard',
   [Permission.VIEW_PATIENTS]: 'View patients',
   [Permission.MANAGE_PATIENTS]: 'Manage patients',
+  [Permission.VIEW_PATIENT_360]: 'Patient 360 lookup',
   [Permission.VIEW_APPOINTMENTS]: 'View appointments',
   [Permission.MANAGE_APPOINTMENTS]: 'Manage appointments',
   [Permission.CANCEL_APPOINTMENTS]: 'Cancel appointments',

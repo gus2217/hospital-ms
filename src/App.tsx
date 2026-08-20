@@ -20,6 +20,7 @@ import Staff from '@/pages/Staff'
 import Reports from '@/pages/Reports'
 import AuditLogs from '@/pages/AuditLogs'
 import PharmacyTracking from '@/pages/PharmacyTracking'
+import Patient360 from '@/pages/Patient360'
 import Consultation from '@/pages/Consultation'
 import PatientPortal from '@/pages/PatientPortal'
 
@@ -87,6 +88,14 @@ export default function App() {
             element={
               <RequirePermission permission={Permission.VIEW_PATIENTS}>
                 <Patients />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/patient-360"
+            element={
+              <RequirePermission permission={Permission.VIEW_PATIENT_360}>
+                <Patient360 />
               </RequirePermission>
             }
           />

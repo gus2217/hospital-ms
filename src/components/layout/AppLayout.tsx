@@ -15,6 +15,7 @@ import {
   ScrollText,
   Stethoscope,
   Users,
+  UserSearch,
   HeartPulse,
   Bell,
   BedDouble,
@@ -81,6 +82,12 @@ const navigation: NavSection[] = [
         label: 'Patients',
         icon: Users,
         permission: Permission.VIEW_PATIENTS,
+      },
+      {
+        to: '/patient-360',
+        label: 'Patient 360',
+        icon: UserSearch,
+        permission: Permission.VIEW_PATIENT_360,
       },
       {
         to: '/doctors',

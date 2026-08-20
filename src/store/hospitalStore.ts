@@ -403,10 +403,20 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
 
   createConsultation: (input) => {
     const state = get()
+    // Real-world flow: a walk-in visit still generates a visit/booking record,
+    // keeping appointments and consultations linked in both directions.
+    const appointment = state.addAppointment({
+      patientId: input.patientId,
+      doctorId: input.doctorId,
+      scheduledStart: new Date().toISOString(),
+      scheduledEnd: new Date(Date.now() + 45 * 60_000).toISOString(),
+      status: AppointmentStatus.Completed,
+      reasonForVisit: 'Walk-in consultation',
+    })
     const record = state.addMedicalRecord({
       patientId: input.patientId,
       doctorId: input.doctorId,
-      appointmentId: undefined,
+      appointmentId: appointment.id,
       diagnosis: input.diagnosis,
       treatmentPlan: input.treatmentPlan,
       clinicalNotes: input.clinicalNotes,

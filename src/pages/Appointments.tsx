@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { DataTable } from '@/components/DataTable'
 import { ConsultationDialog } from '@/components/consultation/ConsultationDialog'
 import { CreateConsultationDialog } from '@/components/consultation/CreateConsultationDialog'
+import { RecordDetailDialog } from '@/components/records/RecordDetailDialog'
 import { PageHeader, StatusBadge } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -236,7 +237,7 @@ function AppointmentFormDialog({
   )
 }
 
-function ConsultationsTab() {
+function ConsultationsTab({ onView }: { onView: (record: MedicalRecord) => void }) {
   const medicalRecords = useHospitalStore((s) => s.medicalRecords)
   const canCreate = usePermission(Permission.CREATE_CONSULTATION)
   const { patientById, doctorById } = useEntityMaps()
@@ -346,6 +347,7 @@ function ConsultationsTab() {
             r.diagnosis.toLowerCase().includes(term) ||
             r.id.toLowerCase().includes(term)
           }
+          onRowClick={onView}
           emptyMessage="No consultations recorded yet."
         />
       </Card>
@@ -367,6 +369,7 @@ export default function Appointments() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Appointment | undefined>(undefined)
   const [consulting, setConsulting] = useState<Appointment | null>(null)
+  const [viewingRecord, setViewingRecord] = useState<MedicalRecord | null>(null)
 
   const filtered = useMemo(
     () =>
@@ -532,9 +535,12 @@ export default function Appointments() {
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={() =>
-                          toast.info(`Medical record ${a.medicalRecordId} is linked — view it in Medical Records.`)
-                        }
+                        onClick={() => {
+                          const record = useHospitalStore
+                            .getState()
+                            .medicalRecords.find((r) => r.id === a.medicalRecordId)
+                          if (record) setViewingRecord(record)
+                        }}
                       >
                         <Eye /> View medical record
                       </DropdownMenuItem>
@@ -628,7 +634,7 @@ export default function Appointments() {
         </TabsContent>
 
         <TabsContent value="consultations" className="pt-4">
-          <ConsultationsTab />
+          <ConsultationsTab onView={setViewingRecord} />
         </TabsContent>
       </Tabs>
 
@@ -647,6 +653,12 @@ export default function Appointments() {
         onOpenChange={(open) => {
           if (!open) setConsulting(null)
         }}
+      />
+
+      <RecordDetailDialog
+        record={viewingRecord}
+        open={viewingRecord !== null}
+        onOpenChange={() => setViewingRecord(null)}
       />
     </div>
   )

@@ -231,9 +231,12 @@ export default function MedicalRecords() {
       {
         accessorKey: 'appointmentId',
         header: 'Appointment',
-        cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.appointmentId}</span>
-        ),
+        cell: ({ row }) =>
+          row.original.appointmentId ? (
+            <span className="font-mono text-xs">{row.original.appointmentId}</span>
+          ) : (
+            <Badge variant="secondary">Walk-in</Badge>
+          ),
       },
       {
         accessorKey: 'diagnosis',
@@ -249,7 +252,9 @@ export default function MedicalRecords() {
         cell: ({ row }) => (
           <div>
             <p>{formatDateTime(row.original.recordedAt)}</p>
-            <p className="text-muted-foreground text-xs">{row.original.appointmentId}</p>
+            <p className="text-muted-foreground text-xs">
+              {row.original.appointmentId ?? 'walk-in'}
+            </p>
           </div>
         ),
       },

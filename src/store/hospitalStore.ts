@@ -91,6 +91,91 @@ export interface CompleteConsultationInput {
   labTests?: { testName: string; testCategory: string }[]
 }
 
+export interface CreateConsultationInput {
+  patientId: string
+  doctorId: string
+  diagnosis: string
+  treatmentPlan: string
+  clinicalNotes: string
+  consultationFee?: number
+  feeCurrency?: string
+  prescription?: CompleteConsultationInput['prescription']
+  labTests?: CompleteConsultationInput['labTests']
+}
+
+/**
+ * Shared post-record work for consultations: fee invoice, prescription,
+ * lab orders and audit trail. Used by both appointment-based and direct
+ * (walk-in) consultation creation.
+ */
+function finalizeConsultation(
+  get: () => HospitalState,
+  record: MedicalRecord,
+  input: {
+    consultationFee?: number
+    feeCurrency?: string
+    prescription?: { items: { drugId: string; quantity: number; dosageInstructions: string }[] }
+    labTests?: { testName: string; testCategory: string }[]
+  },
+) {
+  const state = get()
+
+  // Consultation fee → auto-invoice
+  if (input.consultationFee && input.consultationFee > 0) {
+    const feeItem: InvoiceItem = {
+      id: nextId('INVI', state.invoices.flatMap((i) => i.items)),
+      description: 'Consultation fee',
+      quantity: 1,
+      unitPrice: input.consultationFee,
+      totalPrice: input.consultationFee,
+      sourceReferenceId: record.id,
+      sourceType: 'Consultation',
+    }
+    state.addInvoice({
+      patientId: record.patientId,
+      issuedDate: new Date().toISOString(),
+      dueDate: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+      amountPaid: 0,
+      status: InvoiceStatus.Issued,
+      items: [feeItem],
+    })
+  }
+
+  // Prescription
+  if (input.prescription && input.prescription.items.length > 0) {
+    state.addPrescription({
+      medicalRecordId: record.id,
+      issuedAt: new Date().toISOString(),
+      status: PrescriptionStatus.Ordered,
+      items: input.prescription.items.map((item) => ({
+        ...item,
+        id: nextId('RXI', get().prescriptions.flatMap((p) => p.items)),
+      })),
+    })
+  }
+
+  // Lab tests ordered during consultation
+  for (const test of input.labTests ?? []) {
+    state.addLabTest({
+      patientId: record.patientId,
+      doctorId: record.doctorId,
+      appointmentId: record.appointmentId,
+      testName: test.testName,
+      testCategory: test.testCategory,
+    })
+  }
+
+  useAuditStore.getState().logAudit({
+    userId: currentUserId(),
+    action: 'CREATE_MEDICAL_RECORD',
+    entityType: 'MedicalRecord',
+    entityId: record.id,
+    changes: `Consultation completed for ${record.patientId}${
+      input.consultationFee ? ` — fee KES ${input.consultationFee}` : ''
+    }`,
+  })
+}
+
 export interface AdmitPatientInput {
   patientId: string
   wardId: string
@@ -142,6 +227,8 @@ interface HospitalState {
     doctorId: string,
     input: CompleteConsultationInput,
   ) => MedicalRecord | undefined
+  /** Direct / walk-in consultation without an appointment. */
+  createConsultation: (input: CreateConsultationInput) => MedicalRecord
 
   // ---- Drugs ----
   addDrug: (d: Omit<Drug, 'id'>) => Drug
@@ -310,60 +397,24 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
     })
 
     state.setAppointmentStatus(appointmentId, AppointmentStatus.Completed)
+    finalizeConsultation(get, record, input)
+    return record
+  },
 
-    // Consultation fee → auto-invoice
-    if (input.consultationFee && input.consultationFee > 0) {
-      const feeItem: InvoiceItem = {
-        id: nextId('INVI', state.invoices.flatMap((i) => i.items)),
-        description: 'Consultation fee',
-        quantity: 1,
-        unitPrice: input.consultationFee,
-        totalPrice: input.consultationFee,
-        sourceReferenceId: record.id,
-        sourceType: 'Consultation',
-      }
-      state.addInvoice({
-        patientId: appointment.patientId,
-        issuedDate: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 14 * 86_400_000).toISOString(),
-        amountPaid: 0,
-        status: InvoiceStatus.Issued,
-        items: [feeItem],
-      })
-    }
-
-    if (input.prescription && input.prescription.items.length > 0) {
-      state.addPrescription({
-        medicalRecordId: record.id,
-        issuedAt: new Date().toISOString(),
-        status: PrescriptionStatus.Ordered,
-        items: input.prescription.items.map((item) => ({
-          ...item,
-          id: nextId('RXI', get().prescriptions.flatMap((p) => p.items)),
-        })),
-      })
-    }
-
-    // Lab tests ordered during consultation
-    for (const test of input.labTests ?? []) {
-      state.addLabTest({
-        patientId: appointment.patientId,
-        doctorId,
-        appointmentId: appointment.id,
-        testName: test.testName,
-        testCategory: test.testCategory,
-      })
-    }
-
-    useAuditStore.getState().logAudit({
-      userId: currentUserId(),
-      action: 'CREATE_MEDICAL_RECORD',
-      entityType: 'MedicalRecord',
-      entityId: record.id,
-      changes: `Consultation completed for ${appointment.patientId}${
-        input.consultationFee ? ` — fee KES ${input.consultationFee}` : ''
-      }`,
+  createConsultation: (input) => {
+    const state = get()
+    const record = state.addMedicalRecord({
+      patientId: input.patientId,
+      doctorId: input.doctorId,
+      appointmentId: undefined,
+      diagnosis: input.diagnosis,
+      treatmentPlan: input.treatmentPlan,
+      clinicalNotes: input.clinicalNotes,
+      recordedAt: new Date().toISOString(),
+      consultationFee: input.consultationFee,
+      feeCurrency: input.feeCurrency ?? 'KES',
     })
+    finalizeConsultation(get, record, input)
     return record
   },
 

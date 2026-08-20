@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { AppColumnDef } from '@/components/DataTable'
 import {
+  CalendarDays,
   CalendarPlus,
   CheckCircle2,
   CircleSlash,
@@ -9,15 +10,19 @@ import {
   MoreHorizontal,
   Pencil,
   PlayCircle,
+  Plus,
   Trash2,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DataTable } from '@/components/DataTable'
 import { ConsultationDialog } from '@/components/consultation/ConsultationDialog'
+import { CreateConsultationDialog } from '@/components/consultation/CreateConsultationDialog'
 import { PageHeader, StatusBadge } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -44,12 +49,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { appointmentStatusStyle } from '@/lib/status'
+import { usePermission } from '@/lib/permissions'
 import { useHospitalStore } from '@/store/hospitalStore'
 import {
   AppointmentStatus,
+  Permission,
   type Appointment,
+  type MedicalRecord,
 } from '@/types'
-import { formatTime, relativeDayLabel } from '@/lib/format'
+import { formatCurrency, formatDateTime, formatTime, relativeDayLabel } from '@/lib/format'
 import { fullName, useEntityMaps } from '@/lib/useEntities'
 import { cn } from '@/lib/utils'
 
@@ -225,6 +233,125 @@ function AppointmentFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function ConsultationsTab() {
+  const medicalRecords = useHospitalStore((s) => s.medicalRecords)
+  const canCreate = usePermission(Permission.CREATE_CONSULTATION)
+  const { patientById, doctorById } = useEntityMaps()
+
+  const [createOpen, setCreateOpen] = useState(false)
+
+  const columns = useMemo<AppColumnDef<MedicalRecord>[]>(
+    () => [
+      {
+        accessorKey: 'id',
+        header: 'ID',
+        cell: ({ row }) => (
+          <span className="font-mono text-xs font-semibold text-teal-700">{row.original.id}</span>
+        ),
+      },
+      {
+        accessorKey: 'patientId',
+        header: 'Patient',
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium">{fullName(patientById, row.original.patientId)}</p>
+            <p className="text-muted-foreground text-xs">{row.original.patientId}</p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'doctorId',
+        header: 'Doctor',
+        cell: ({ row }) => (
+          <div>
+            <p>{fullName(doctorById, row.original.doctorId)}</p>
+            <p className="text-muted-foreground text-xs">
+              {doctorById.get(row.original.doctorId)?.specialization}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'diagnosis',
+        header: 'Diagnosis',
+        cell: ({ row }) => (
+          <span className="block max-w-56 truncate font-medium">{row.original.diagnosis}</span>
+        ),
+      },
+      {
+        accessorKey: 'appointmentId',
+        header: 'Source',
+        cell: ({ row }) =>
+          row.original.appointmentId ? (
+            <span className="font-mono text-xs">{row.original.appointmentId}</span>
+          ) : (
+            <Badge variant="secondary">Walk-in</Badge>
+          ),
+      },
+      {
+        accessorKey: 'recordedAt',
+        header: 'Recorded',
+        sortFn: 'datetime',
+        cell: ({ row }) => (
+          <div>
+            <p>{formatDateTime(row.original.recordedAt)}</p>
+            <p className="text-muted-foreground text-xs">v{row.original.version}</p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'consultationFee',
+        header: 'Fee',
+        cell: ({ row }) =>
+          row.original.consultationFee ? (
+            <span className="font-semibold">{formatCurrency(row.original.consultationFee)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+    ],
+    [patientById, doctorById],
+  )
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Badge variant="info" className="gap-1.5 px-3 py-1.5">
+          <ClipboardPlus className="size-3.5" />
+          {medicalRecords.length} consultation{medicalRecords.length === 1 ? '' : 's'} on record
+        </Badge>
+        <p className="text-muted-foreground ml-auto text-xs">
+          Walk-in consultations create the medical record, fee invoice and any prescriptions/lab
+          orders automatically.
+        </p>
+        {canCreate && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus /> New consultation
+          </Button>
+        )}
+      </div>
+
+      <Card className="gap-0 border-0 py-0 shadow-none">
+        <DataTable
+          columns={columns}
+          data={medicalRecords}
+          getRowId={(r) => r.id}
+          searchPlaceholder="Search patient, doctor or diagnosis…"
+          globalFilter={(r, term) =>
+            fullName(patientById, r.patientId).toLowerCase().includes(term) ||
+            fullName(doctorById, r.doctorId).toLowerCase().includes(term) ||
+            r.diagnosis.toLowerCase().includes(term) ||
+            r.id.toLowerCase().includes(term)
+          }
+          emptyMessage="No consultations recorded yet."
+        />
+      </Card>
+
+      <CreateConsultationDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </>
   )
 }
 
@@ -455,7 +582,18 @@ export default function Appointments() {
         </Button>
       </PageHeader>
 
-      <div className="flex flex-wrap gap-2">
+      <Tabs defaultValue="appointments">
+        <TabsList>
+          <TabsTrigger value="appointments">
+            <CalendarDays /> Appointments
+          </TabsTrigger>
+          <TabsTrigger value="consultations">
+            <ClipboardPlus /> Consultations
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="appointments" className="pt-4">
+          <div className="flex flex-wrap gap-2">
         {statusTabs.map((tab) => (
           <button
             key={tab}
@@ -487,6 +625,12 @@ export default function Appointments() {
           emptyMessage="No appointments match this filter."
         />
       </Card>
+        </TabsContent>
+
+        <TabsContent value="consultations" className="pt-4">
+          <ConsultationsTab />
+        </TabsContent>
+      </Tabs>
 
       <AppointmentFormDialog
         open={formOpen}

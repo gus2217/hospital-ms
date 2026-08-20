@@ -187,7 +187,8 @@ export interface MedicalRecord {
   id: string
   patientId: string
   doctorId: string
-  appointmentId: string
+  /** Optional — walk-in/direct consultations have no booking. */
+  appointmentId?: string
   diagnosis: string
   treatmentPlan: string
   clinicalNotes: string

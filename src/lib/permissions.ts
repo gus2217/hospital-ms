@@ -48,6 +48,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_APPOINTMENTS,
     Permission.MANAGE_APPOINTMENTS,
     Permission.CANCEL_APPOINTMENTS,
+    Permission.VIEW_MEDICAL_RECORDS,
+    Permission.CREATE_CONSULTATION,
     Permission.VIEW_BILLING,
     Permission.RECORD_PAYMENT,
     Permission.MANAGE_INVOICES,

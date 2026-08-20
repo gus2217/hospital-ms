@@ -16,6 +16,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  BedDouble,
   CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
@@ -46,6 +47,7 @@ import { appointmentStatusStyle } from '@/lib/status'
 import {
   AppointmentStatus,
   InvoiceStatus,
+  LabTestStatus,
   PrescriptionStatus,
   UserRole,
 } from '@/types'
@@ -58,7 +60,7 @@ import {
   upcomingAppointments,
   useEntityMaps,
 } from '@/lib/useEntities'
-import { formatCurrency, formatDateTime, formatTime } from '@/lib/format'
+import { formatCurrency, formatDate, formatDateTime, formatTime } from '@/lib/format'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.Admin]: 'Administrator',
@@ -66,6 +68,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.Pharmacist]: 'Pharmacist',
   [UserRole.Receptionist]: 'Receptionist',
   [UserRole.Nurse]: 'Nurse',
+  [UserRole.LabTechnician]: 'Lab Technician',
   [UserRole.Patient]: 'Patient',
 }
 
@@ -98,6 +101,7 @@ const ROLE_QUICK_ACTIONS: Record<UserRole, { label: string; to: string; icon: Lu
   [UserRole.Pharmacist]: [{ label: 'Dispense prescriptions', to: '/pharmacy', icon: Pill }],
   [UserRole.Receptionist]: [{ label: 'Register patient', to: '/patients', icon: UserPlus }],
   [UserRole.Nurse]: [{ label: "Today's schedule", to: '/appointments', icon: CalendarDays }],
+  [UserRole.LabTechnician]: [{ label: 'Process tests', to: '/lab', icon: FlaskConical }],
   [UserRole.Patient]: [],
 }
 
@@ -112,6 +116,9 @@ export default function Dashboard() {
   const patients = useHospitalStore((s) => s.patients)
   const medicalRecords = useHospitalStore((s) => s.medicalRecords)
   const invoices = useHospitalStore((s) => s.invoices)
+  const labTests = useHospitalStore((s) => s.labTests)
+  const wards = useHospitalStore((s) => s.wards)
+  const admissions = useHospitalStore((s) => s.admissions)
 
   const { patientById, doctorById, recordById, invoiceById } = useEntityMaps()
 
@@ -125,6 +132,32 @@ export default function Dashboard() {
     const myRecords = currentUser
       ? medicalRecords.filter((r) => r.doctorId === currentUser.id)
       : []
+
+    const now = new Date().toDateString()
+    const pharmacyInvoiceIds = new Set(
+      invoices
+        .filter((i) => i.items.some((it) => it.sourceType === 'Prescription'))
+        .map((i) => i.id),
+    )
+    const todayPharmacyRevenue = payments
+      .filter(
+        (p) =>
+          pharmacyInvoiceIds.has(p.invoiceId) &&
+          new Date(p.paymentDate).toDateString() === now,
+      )
+      .reduce((sum, p) => sum + p.amount, 0)
+
+    const todayRecords = medicalRecords.filter(
+      (r) => new Date(r.recordedAt).toDateString() === now,
+    )
+    const todayConsultationRevenue = todayRecords.reduce(
+      (sum, r) => sum + (r.consultationFee ?? 0),
+      0,
+    )
+    const avgConsultationFee =
+      todayRecords.length > 0
+        ? Math.round((todayConsultationRevenue / todayRecords.length) * 100) / 100
+        : 0
 
     return {
       todayCount: todayAppts.length,
@@ -142,8 +175,21 @@ export default function Dashboard() {
       myPatients,
       myCompleted,
       myRecords,
+      todayPharmacyRevenue,
+      todayConsultationRevenue,
+      avgConsultationFee,
+      pendingLabOrders: labTests.filter(
+        (t) =>
+          t.status === LabTestStatus.Ordered || t.status === LabTestStatus.InProgress,
+      ).length,
+      labCompletedToday: labTests.filter(
+        (t) =>
+          t.status === LabTestStatus.Completed &&
+          new Date(t.completedAt ?? '').toDateString() === now,
+      ).length,
+      labAbnormal: labTests.filter((t) => t.isAbnormal).length,
     }
-  }, [appointments, payments, prescriptions, patients, drugs, medicalRecords, invoices, currentUser])
+  }, [appointments, payments, prescriptions, patients, drugs, medicalRecords, invoices, labTests, currentUser])
 
   const kpis = useMemo((): Kpi[] => {
     const s = stats
@@ -158,25 +204,25 @@ export default function Dashboard() {
             accent: 'text-sky-600 bg-sky-50',
           },
           {
-            label: 'My Patients',
-            value: String(s.myPatients),
-            sub: 'Assigned to your care',
-            icon: Users,
-            accent: 'text-violet-600 bg-violet-50',
-          },
-          {
-            label: 'Completed Consultations',
-            value: String(s.myCompleted),
-            sub: 'Across your schedule',
-            icon: ClipboardCheck,
+            label: "Today's Consultation Revenue",
+            value: formatCurrency(s.todayConsultationRevenue),
+            sub: 'Fees auto-invoiced today',
+            icon: CircleDollarSign,
             accent: 'text-emerald-600 bg-emerald-50',
           },
           {
-            label: 'Upcoming Appointments',
-            value: String(s.upcomingCount),
-            sub: 'In the next few days',
-            icon: CalendarDays,
+            label: 'Average Consultation Fee',
+            value: formatCurrency(s.avgConsultationFee),
+            sub: 'Across today’s consultations',
+            icon: ClipboardCheck,
             accent: 'text-teal-600 bg-teal-50',
+          },
+          {
+            label: 'Pending Lab Orders',
+            value: String(s.pendingLabOrders),
+            sub: 'Awaiting results',
+            icon: FlaskConical,
+            accent: 'text-amber-600 bg-amber-50',
           },
         ]
       case UserRole.Pharmacist:
@@ -189,25 +235,25 @@ export default function Dashboard() {
             accent: 'text-amber-600 bg-amber-50',
           },
           {
-            label: 'Low Stock Items',
-            value: String(s.lowStockCount),
-            sub: 'At or below reorder level',
-            icon: AlertTriangle,
-            accent: 'text-rose-600 bg-rose-50',
+            label: "Today's Pharmacy Revenue",
+            value: formatCurrency(s.todayPharmacyRevenue),
+            sub: 'Collected from dispensing today',
+            icon: CircleDollarSign,
+            accent: 'text-emerald-600 bg-emerald-50',
           },
           {
-            label: 'Drugs in Inventory',
-            value: String(s.drugCount),
-            sub: 'Across the formulary',
-            icon: FlaskConical,
-            accent: 'text-teal-600 bg-teal-50',
+            label: 'Low Stock Items',
+            value: String(s.lowStockCount),
+            sub: 'At or below reorder point',
+            icon: AlertTriangle,
+            accent: 'text-rose-600 bg-rose-50',
           },
           {
             label: 'Dispensed Prescriptions',
             value: String(s.dispensed),
             sub: 'All time (mock data)',
             icon: ClipboardCheck,
-            accent: 'text-emerald-600 bg-emerald-50',
+            accent: 'text-teal-600 bg-teal-50',
           },
         ]
       case UserRole.Receptionist:
@@ -239,6 +285,37 @@ export default function Dashboard() {
             sub: 'Past their due date',
             icon: AlertTriangle,
             accent: 'text-rose-600 bg-rose-50',
+          },
+        ]
+      case UserRole.LabTechnician:
+        return [
+          {
+            label: 'Pending Tests',
+            value: String(s.pendingLabOrders),
+            sub: 'Awaiting processing',
+            icon: FlaskConical,
+            accent: 'text-sky-600 bg-sky-50',
+          },
+          {
+            label: 'Completed Today',
+            value: String(s.labCompletedToday),
+            sub: 'Tests finalized',
+            icon: ClipboardCheck,
+            accent: 'text-emerald-600 bg-emerald-50',
+          },
+          {
+            label: 'Abnormal Results',
+            value: String(s.labAbnormal),
+            sub: 'Flagged for review',
+            icon: AlertTriangle,
+            accent: 'text-rose-600 bg-rose-50',
+          },
+          {
+            label: 'Registered Patients',
+            value: String(s.patientCount),
+            sub: 'Across all departments',
+            icon: Users,
+            accent: 'text-violet-600 bg-violet-50',
           },
         ]
       case UserRole.Nurse:
@@ -724,10 +801,11 @@ export default function Dashboard() {
           role={role}
           lowStock={lowStock}
           records={stats.myRecords}
-          allRecords={medicalRecords}
           payments={payments}
+          labTests={labTests}
+          wards={wards}
+          admissions={admissions}
           patientById={patientById}
-          doctorById={doctorById}
           invoiceById={invoiceById}
         />
       </div>
@@ -739,22 +817,88 @@ function RoleFocusCard({
   role,
   lowStock,
   records,
-  allRecords,
   payments,
+  labTests,
+  wards,
+  admissions,
   patientById,
-  doctorById,
   invoiceById,
 }: {
   role: UserRole
   lowStock: ReturnType<typeof lowStockDrugs>
   records: ReturnType<typeof useEntityMaps>['medicalRecords']
-  allRecords: ReturnType<typeof useEntityMaps>['medicalRecords']
   payments: ReturnType<typeof useEntityMaps>['payments']
+  labTests: ReturnType<typeof useEntityMaps>['labTests']
+  wards: ReturnType<typeof useEntityMaps>['wards']
+  admissions: ReturnType<typeof useEntityMaps>['admissions']
   patientById: ReturnType<typeof useEntityMaps>['patientById']
-  doctorById: ReturnType<typeof useEntityMaps>['doctorById']
   invoiceById: ReturnType<typeof useEntityMaps>['invoiceById']
 }) {
-  if (role === UserRole.Admin || role === UserRole.Pharmacist) {
+  // ---- Admin: operations snapshot ----
+  if (role === UserRole.Admin) {
+    const totalBeds = wards.reduce((s, w) => s + w.totalBeds, 0)
+    const occupied = admissions.filter((a) => a.status === 'Active').length
+    const occupancyRate = totalBeds ? Math.round((occupied / totalBeds) * 100) : 0
+    const dischargeAlerts = admissions.filter((a) => {
+      if (a.status !== 'Active' || !a.expectedDischargeDate) return false
+      return (
+        Math.ceil(
+          (new Date(a.expectedDischargeDate).getTime() - new Date().getTime()) / 86_400_000,
+        ) <= 1
+      )
+    }).length
+    const pendingLab = labTests.filter(
+      (t) => t.status === 'Ordered' || t.status === 'InProgress',
+    ).length
+    const abnormalLab = labTests.filter((t) => t.isAbnormal).length
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Activity className="text-primary size-4" />
+            Operations snapshot
+          </CardTitle>
+          <CardDescription>Hospital-wide pulse</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm">
+            <span className="text-muted-foreground">Bed occupancy</span>
+            <span className="font-semibold">{occupancyRate}% ({occupied}/{totalBeds})</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm">
+            <span className="text-muted-foreground">Discharge alerts (24h)</span>
+            <span className={dischargeAlerts > 0 ? 'font-semibold text-amber-600' : 'font-semibold'}>
+              {dischargeAlerts}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm">
+            <span className="text-muted-foreground">Pending lab tests</span>
+            <span className="font-semibold">{pendingLab}</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm">
+            <span className="text-muted-foreground">Abnormal lab results</span>
+            <span className="font-semibold text-rose-600">{abnormalLab}</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm">
+            <span className="text-muted-foreground">Low stock drugs</span>
+            <span className="font-semibold text-amber-600">{lowStock.length}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/wards">Wards</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/pharmacy-tracking">Pharmacy</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ---- Pharmacist: low stock ----
+  if (role === UserRole.Pharmacist) {
     return (
       <Card>
         <CardHeader>
@@ -762,7 +906,7 @@ function RoleFocusCard({
             <AlertTriangle className="text-amber-500 size-4" />
             Low stock alerts
           </CardTitle>
-          <CardDescription>Drugs at or below reorder level</CardDescription>
+          <CardDescription>Drugs at or below reorder point</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {lowStock.length === 0 ? (
@@ -778,7 +922,7 @@ function RoleFocusCard({
                 <div>
                   <p className="text-sm font-medium">{drug.name}</p>
                   <p className="text-muted-foreground text-xs">
-                    {drug.stockQuantity} left · reorder at {drug.reorderLevel}
+                    {drug.stockQuantity} left · reorder at {drug.reorderPoint}
                   </p>
                 </div>
                 <Badge variant={drug.stockQuantity === 0 ? 'destructive' : 'warning'}>
@@ -797,6 +941,7 @@ function RoleFocusCard({
     )
   }
 
+  // ---- Receptionist: recent payments ----
   if (role === UserRole.Receptionist) {
     const recent = payments.slice(0, 4)
     return (
@@ -842,9 +987,121 @@ function RoleFocusCard({
     )
   }
 
-  // Doctor / Nurse → recent consultations
-  const recent = (role === UserRole.Doctor ? records : allRecords)
-    .slice()
+  // ---- Nurse: ward occupancy ----
+  if (role === UserRole.Nurse) {
+    const totalBeds = wards.reduce((s, w) => s + w.totalBeds, 0)
+    const occupied = admissions.filter((a) => a.status === 'Active').length
+    const occupancyRate = totalBeds ? Math.round((occupied / totalBeds) * 100) : 0
+    const dischargeAlerts = admissions.filter((a) => {
+      if (a.status !== 'Active' || !a.expectedDischargeDate) return false
+      return (
+        Math.ceil(
+          (new Date(a.expectedDischargeDate).getTime() - new Date().getTime()) / 86_400_000,
+        ) <= 1
+      )
+    })
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BedDouble className="text-primary size-4" />
+            Ward occupancy
+          </CardTitle>
+          <CardDescription>Inpatient capacity at a glance</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+            <span className="text-muted-foreground text-sm">Occupancy rate</span>
+            <span className="text-sm font-bold">{occupancyRate}%</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+            <span className="text-muted-foreground text-sm">Beds occupied</span>
+            <span className="text-sm font-semibold">
+              {occupied} / {totalBeds}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+            <span className="text-muted-foreground text-sm">Discharge due ≤ 24h</span>
+            <span
+              className={`text-sm font-semibold ${
+                dischargeAlerts.length > 0 ? 'text-amber-600' : ''
+              }`}
+            >
+              {dischargeAlerts.length}
+            </span>
+          </div>
+          {dischargeAlerts.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              {dischargeAlerts.map((a) => (
+                <p key={a.id}>
+                  {fullName(patientById, a.patientId)} — bed {a.bedNumber}, expected{' '}
+                  {formatDate(a.expectedDischargeDate ?? '')}
+                </p>
+              ))}
+            </div>
+          )}
+          <Button asChild variant="outline" size="sm" className="w-full">
+            <Link to="/wards">
+              Manage wards <ArrowRight />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ---- Lab Technician: lab queue ----
+  if (role === UserRole.LabTechnician) {
+    const queue = labTests
+      .filter((t) => t.status === 'Ordered' || t.status === 'InProgress')
+      .sort((a, b) => new Date(a.orderedAt).getTime() - new Date(b.orderedAt).getTime())
+      .slice(0, 4)
+    const abnormal = labTests.filter((t) => t.isAbnormal).length
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FlaskConical className="text-primary size-4" />
+            Lab queue
+          </CardTitle>
+          <CardDescription>
+            Pending tests · {abnormal} abnormal result{abnormal === 1 ? '' : 's'} flagged
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {queue.length === 0 ? (
+            <p className="text-muted-foreground py-6 text-center text-sm">Queue is clear. 🎉</p>
+          ) : (
+            queue.map((t) => (
+              <div key={t.id} className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">{t.testName}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {fullName(patientById, t.patientId)} · {t.testCategory}
+                  </p>
+                </div>
+                <StatusBadge
+                  label={t.status}
+                  variant={t.status === 'InProgress' ? 'violet' : 'info'}
+                  dot={t.status === 'InProgress' ? 'bg-violet-500' : 'bg-sky-500'}
+                />
+              </div>
+            ))
+          )}
+          <Button asChild variant="outline" size="sm" className="w-full">
+            <Link to="/lab">
+              Open laboratory <ArrowRight />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ---- Doctor: recent consultations ----
+  const recent = records.slice()
     .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())
     .slice(0, 4)
 
@@ -853,9 +1110,9 @@ function RoleFocusCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <FileText className="text-sky-500 size-4" />
-          {role === UserRole.Doctor ? 'My recent consultations' : 'Recent consultations'}
+          My recent consultations
         </CardTitle>
-        <CardDescription>Latest medical records on file</CardDescription>
+        <CardDescription>Latest records you authored</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {recent.length === 0 ? (
@@ -867,11 +1124,7 @@ function RoleFocusCard({
                 <p className="text-sm font-medium">{fullName(patientById, r.patientId)}</p>
                 <span className="text-muted-foreground text-xs">{formatDateTime(r.recordedAt)}</span>
               </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                {role === UserRole.Nurse
-                  ? `Dr. ${fullName(doctorById, r.doctorId)}`
-                  : r.diagnosis}
-              </p>
+              <p className="text-muted-foreground mt-1 text-xs">{r.diagnosis}</p>
             </div>
           ))
         )}

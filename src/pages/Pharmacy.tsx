@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { AppColumnDef } from '@/components/DataTable'
 import {
   AlertTriangle,
+  Banknote,
   Boxes,
   Eye,
   MoreHorizontal,
@@ -35,8 +36,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { useHospitalStore } from '@/store/hospitalStore'
-import { prescriptionStatusStyle } from '@/lib/status'
+import { useAuthStore } from '@/store/authStore'
+import { prescriptionStatusStyle, paymentMethodLabel } from '@/lib/status'
 import {
   PrescriptionStatus,
   type Drug,
@@ -44,6 +54,10 @@ import {
 } from '@/types'
 import { formatCurrency, formatDateTime } from '@/lib/format'
 import { fullName, useEntityMaps } from '@/lib/useEntities'
+
+const PAYMENT_METHODS = ['Cash', 'Credit Card', 'M-Pesa', 'Insurance', 'Bank']
+
+const DEFAULT_EXPIRY = new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10)
 
 // ======================= Drug inventory =======================
 
@@ -53,7 +67,10 @@ interface DrugDraft {
   manufacturer: string
   unitPrice: number
   stockQuantity: number
-  reorderLevel: number
+  reorderPoint: number
+  category: string
+  batchNumber: string
+  expiryDate: string
 }
 
 function DrugFormDialog({
@@ -76,7 +93,10 @@ function DrugFormDialog({
           manufacturer: editing.manufacturer,
           unitPrice: editing.unitPrice,
           stockQuantity: editing.stockQuantity,
-          reorderLevel: editing.reorderLevel,
+          reorderPoint: editing.reorderPoint,
+          category: editing.category,
+          batchNumber: editing.batchNumber,
+          expiryDate: editing.expiryDate.slice(0, 10),
         }
       : {
           name: '',
@@ -84,19 +104,39 @@ function DrugFormDialog({
           manufacturer: '',
           unitPrice: 0,
           stockQuantity: 0,
-          reorderLevel: 10,
+          reorderPoint: 10,
+          category: '',
+          batchNumber: '',
+          expiryDate: DEFAULT_EXPIRY,
         },
   )
 
-  const valid = draft.name.trim() && draft.genericName.trim() && draft.unitPrice > 0
+  const valid =
+    draft.name.trim() &&
+    draft.genericName.trim() &&
+    draft.category.trim() &&
+    draft.batchNumber.trim() &&
+    draft.expiryDate &&
+    draft.unitPrice > 0
 
   function handleSave() {
     if (!valid) return
+    const payload = {
+      ...draft,
+      name: draft.name.trim(),
+      genericName: draft.genericName.trim(),
+      manufacturer: draft.manufacturer.trim() || 'Unknown',
+      category: draft.category.trim(),
+      batchNumber: draft.batchNumber.trim(),
+      unitPrice: Number(draft.unitPrice),
+      reorderPoint: Number(draft.reorderPoint),
+      expiryDate: new Date(draft.expiryDate).toISOString(),
+    }
     if (editing) {
-      updateDrug(editing.id, { ...draft, unitPrice: Number(draft.unitPrice) })
+      updateDrug(editing.id, payload)
       toast.success(`${editing.id} updated.`)
     } else {
-      const d = addDrug({ ...draft, unitPrice: Number(draft.unitPrice) })
+      const d = addDrug(payload)
       toast.success(`${d.name} added to inventory.`)
     }
     onOpenChange(false)
@@ -107,7 +147,7 @@ function DrugFormDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? `Edit ${editing.id}` : 'Add drug to inventory'}</DialogTitle>
-          <DialogDescription>Drug details, pricing and stock levels.</DialogDescription>
+          <DialogDescription>Drug details, batch info, pricing and stock levels.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -124,7 +164,31 @@ function DrugFormDialog({
               onChange={(e) => setDraft((d) => ({ ...d, genericName: e.target.value }))}
             />
           </div>
-          <div className="grid gap-2 sm:col-span-2">
+          <div className="grid gap-2">
+            <Label>Category</Label>
+            <Input
+              value={draft.category}
+              onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
+              placeholder="e.g. Antibiotics"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Batch number</Label>
+            <Input
+              value={draft.batchNumber}
+              onChange={(e) => setDraft((d) => ({ ...d, batchNumber: e.target.value }))}
+              placeholder="e.g. BAT-AMX-2601"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Expiry date</Label>
+            <Input
+              type="date"
+              value={draft.expiryDate}
+              onChange={(e) => setDraft((d) => ({ ...d, expiryDate: e.target.value }))}
+            />
+          </div>
+          <div className="grid gap-2">
             <Label>Manufacturer</Label>
             <Input
               value={draft.manufacturer}
@@ -141,12 +205,12 @@ function DrugFormDialog({
             />
           </div>
           <div className="grid gap-2">
-            <Label>Reorder level</Label>
+            <Label>Reorder point</Label>
             <Input
               type="number"
               min={0}
-              value={draft.reorderLevel}
-              onChange={(e) => setDraft((d) => ({ ...d, reorderLevel: Number(e.target.value) }))}
+              value={draft.reorderPoint}
+              onChange={(e) => setDraft((d) => ({ ...d, reorderPoint: Number(e.target.value) }))}
             />
           </div>
           <div className="grid gap-2 sm:col-span-2">
@@ -200,9 +264,9 @@ function DrugInventory() {
         ),
       },
       {
-        accessorKey: 'manufacturer',
-        header: 'Manufacturer',
-        cell: ({ row }) => <span className="text-muted-foreground">{row.original.manufacturer}</span>,
+        accessorKey: 'category',
+        header: 'Category',
+        cell: ({ row }) => <Badge variant="secondary">{row.original.category}</Badge>,
       },
       {
         accessorKey: 'unitPrice',
@@ -214,7 +278,7 @@ function DrugInventory() {
         header: 'Stock',
         cell: ({ row }) => {
           const d = row.original
-          const low = d.stockQuantity <= d.reorderLevel
+          const low = d.stockQuantity <= d.reorderPoint
           return (
             <div className="flex items-center gap-2">
               <span className={`font-semibold ${low ? 'text-amber-600' : ''}`}>
@@ -230,9 +294,18 @@ function DrugInventory() {
         },
       },
       {
-        accessorKey: 'reorderLevel',
-        header: 'Reorder at',
-        cell: ({ row }) => <span className="text-muted-foreground">{row.original.reorderLevel}</span>,
+        accessorKey: 'expiryDate',
+        header: 'Expiry',
+        cell: ({ row }) => {
+          const days = Math.ceil(
+            (new Date(row.original.expiryDate).getTime() - Date.now()) / 86_400_000,
+          )
+          return (
+            <Badge variant={days <= 60 ? 'destructive' : days <= 90 ? 'warning' : 'secondary'}>
+              {days <= 0 ? 'Expired' : `${days}d`}
+            </Badge>
+          )
+        },
       },
       {
         id: 'actions',
@@ -286,7 +359,7 @@ function DrugInventory() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Badge variant="warning" className="gap-1.5 px-3 py-1.5">
           <AlertTriangle className="size-3.5" />
-          {drugs.filter((d) => d.stockQuantity <= d.reorderLevel).length} drugs need reordering
+          {drugs.filter((d) => d.stockQuantity <= d.reorderPoint).length} drugs need reordering
         </Badge>
         <div className="ml-auto">
           <Button
@@ -304,10 +377,11 @@ function DrugInventory() {
         columns={columns}
         data={drugs}
         getRowId={(d) => d.id}
-        searchPlaceholder="Search drug name, generic or manufacturer…"
+        searchPlaceholder="Search drug name, generic, category or manufacturer…"
         globalFilter={(d, term) =>
-          `${d.name} ${d.genericName} ${d.manufacturer}`.toLowerCase().includes(term) ||
-          d.id.toLowerCase().includes(term)
+          `${d.name} ${d.genericName} ${d.category} ${d.manufacturer}`
+            .toLowerCase()
+            .includes(term) || d.id.toLowerCase().includes(term)
         }
         emptyMessage="No drugs in inventory."
       />
@@ -397,17 +471,184 @@ function PrescriptionViewDialog({
   )
 }
 
+/**
+ * Dispense + collect payment in one step: deducts stock, creates the invoice,
+ * and records the payment (full or partial) against the patient's account.
+ */
+function DispensePaymentDialog({
+  prescription,
+  open,
+  onOpenChange,
+}: {
+  prescription: Prescription | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const currentUser = useAuthStore((s) => s.currentUser)
+  const dispensePrescription = useHospitalStore((s) => s.dispensePrescription)
+  const recordPayment = useHospitalStore((s) => s.recordPayment)
+  const { drugById, recordById, patientById } = useEntityMaps()
+
+  const [method, setMethod] = useState('M-Pesa')
+  const [busy, setBusy] = useState(false)
+  // The dialog is keyed by prescription id, so this initializer runs fresh per prescription.
+  const [amount, setAmount] = useState(() => {
+    if (!prescription) return 0
+    const subtotal = prescription.items.reduce(
+      (sum, item) => sum + (drugById.get(item.drugId)?.unitPrice ?? 0) * item.quantity,
+      0,
+    )
+    return Math.round(subtotal * 1.16 * 100) / 100
+  })
+
+  const totals = useMemo(() => {
+    if (!prescription) return { subtotal: 0, tax: 0, total: 0 }
+    const subtotal = prescription.items.reduce(
+      (sum, item) => sum + (drugById.get(item.drugId)?.unitPrice ?? 0) * item.quantity,
+      0,
+    )
+    const tax = Math.round(subtotal * 0.16 * 100) / 100
+    return { subtotal, tax, total: Math.round((subtotal + tax) * 100) / 100 }
+  }, [prescription, drugById])
+
+  if (!prescription) return null
+  const rx: Prescription = prescription
+
+  const record = recordById.get(rx.medicalRecordId)
+  const patientName = record ? fullName(patientById, record.patientId) : '—'
+  const balance = totals.total - amount
+
+  function handleConfirm() {
+    if (amount <= 0 || amount > totals.total) {
+      toast.error('Enter a valid amount (up to the invoice total).')
+      return
+    }
+    setBusy(true)
+
+    // 1) Dispense (deducts stock + creates the invoice) if still ordered.
+    if (rx.status === PrescriptionStatus.Ordered) {
+      dispensePrescription(rx.id, currentUser?.id ?? 'STF-002')
+    }
+
+    // 2) Locate the invoice created from this prescription.
+    const invoice = useHospitalStore
+      .getState()
+      .invoices.find((i) => i.items.some((it) => it.sourceReferenceId === rx.id))
+
+    if (!invoice) {
+      setBusy(false)
+      toast.error('Could not locate the generated invoice.')
+      return
+    }
+
+    // 3) Record the payment (full or partial).
+    recordPayment(invoice.id, amount, method)
+    setBusy(false)
+    toast.success(
+      `${rx.id} dispensed — ${formatCurrency(amount)} collected via ${paymentMethodLabel(method)}.`,
+    )
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Dispense & collect payment</DialogTitle>
+          <DialogDescription>
+            {prescription.id} · {patientName}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="rounded-lg border">
+            {prescription.items.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between border-b px-3 py-2 text-sm last:border-b-0"
+              >
+                <span className="font-medium">
+                  {drugById.get(item.drugId)?.name ?? item.drugId} × {item.quantity}
+                </span>
+                <span className="text-muted-foreground">
+                  {formatCurrency((drugById.get(item.drugId)?.unitPrice ?? 0) * item.quantity)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1.5 text-sm">
+            <div className="text-muted-foreground flex justify-between">
+              <span>Subtotal</span>
+              <span>{formatCurrency(totals.subtotal)}</span>
+            </div>
+            <div className="text-muted-foreground flex justify-between">
+              <span>Tax (16% VAT)</span>
+              <span>{formatCurrency(totals.tax)}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold">
+              <span>Total</span>
+              <span>{formatCurrency(totals.total)}</span>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="grid gap-2">
+            <Label htmlFor="dpx-method">Payment method</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger id="dpx-method" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYMENT_METHODS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="dpx-amount">Amount received (KES)</Label>
+            <Input
+              id="dpx-amount"
+              type="number"
+              min={1}
+              max={totals.total}
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value))}
+            />
+            <p className="text-muted-foreground text-xs">
+              {balance > 0
+                ? `Partial payment — balance ${formatCurrency(balance)} remains on the invoice.`
+                : 'Full payment — invoice will be marked Paid.'}
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirm} disabled={busy || amount <= 0}>
+            <Banknote /> Dispense & collect {formatCurrency(amount)}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function PrescriptionsTab() {
   const prescriptions = useHospitalStore((s) => s.prescriptions)
-  const dispensePrescription = useHospitalStore((s) => s.dispensePrescription)
   const cancelPrescription = useHospitalStore((s) => s.cancelPrescription)
   const deletePrescription = useHospitalStore((s) => s.deletePrescription)
-  const staff = useHospitalStore((s) => s.staff)
   const { recordById, patientById, drugById } = useEntityMaps()
 
   const [viewing, setViewing] = useState<Prescription | null>(null)
-
-  const pharmacistId = staff.find((s) => s.role === 'Pharmacist')?.id ?? 'STF-002'
+  const [paying, setPaying] = useState<Prescription | null>(null)
 
   const columns = useMemo<AppColumnDef<Prescription>[]>(
     () => [
@@ -486,22 +727,15 @@ function PrescriptionsTab() {
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem onClick={() => setViewing(rx)}>
                     <Eye /> View items
                   </DropdownMenuItem>
                   {rx.status === PrescriptionStatus.Ordered && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => {
-                          dispensePrescription(rx.id, pharmacistId)
-                          toast.success(
-                            `${rx.id} dispensed — stock deducted and invoice issued for billing.`,
-                          )
-                        }}
-                      >
-                        <Pill /> Dispense & bill patient
+                      <DropdownMenuItem onClick={() => setPaying(rx)}>
+                        <Banknote /> Dispense & collect payment
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
@@ -536,7 +770,7 @@ function PrescriptionsTab() {
         },
       },
     ],
-    [recordById, patientById, drugById, dispensePrescription, cancelPrescription, deletePrescription, pharmacistId],
+    [recordById, patientById, drugById, cancelPrescription, deletePrescription],
   )
 
   return (
@@ -547,7 +781,7 @@ function PrescriptionsTab() {
           {prescriptions.filter((p) => p.status === 'Ordered').length} awaiting dispensing
         </Badge>
         <p className="text-muted-foreground ml-auto text-xs">
-          Dispensing deducts stock and automatically creates a billing invoice.
+          Dispensing deducts stock, issues the invoice and records the payment in one step.
         </p>
       </div>
 
@@ -573,6 +807,13 @@ function PrescriptionsTab() {
         open={viewing !== null}
         onOpenChange={() => setViewing(null)}
       />
+
+      <DispensePaymentDialog
+        key={paying?.id ?? 'none'}
+        prescription={paying}
+        open={paying !== null}
+        onOpenChange={() => setPaying(null)}
+      />
     </>
   )
 }
@@ -582,7 +823,7 @@ export default function Pharmacy() {
     <div className="space-y-6">
       <PageHeader
         title="Pharmacy"
-        description="Drug inventory, reorder alerts, and prescription dispensing."
+        description="Drug inventory, batch & expiry tracking, and one-step dispense + payment."
       />
 
       <Tabs defaultValue="inventory">

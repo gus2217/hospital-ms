@@ -11,6 +11,9 @@ export function useEntityMaps() {
   const prescriptions = useHospitalStore((s) => s.prescriptions)
   const invoices = useHospitalStore((s) => s.invoices)
   const payments = useHospitalStore((s) => s.payments)
+  const labTests = useHospitalStore((s) => s.labTests)
+  const wards = useHospitalStore((s) => s.wards)
+  const admissions = useHospitalStore((s) => s.admissions)
 
   const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])
   const doctorById = useMemo(() => new Map(doctors.map((d) => [d.id, d])), [doctors])
@@ -38,6 +41,9 @@ export function useEntityMaps() {
     prescriptions,
     invoices,
     payments,
+    labTests,
+    wards,
+    admissions,
     patientById,
     doctorById,
     drugById,
@@ -85,7 +91,7 @@ export function openInvoices(invoices: Invoice[]): Invoice[] {
 }
 
 export function lowStockDrugs(drugs: Drug[]): Drug[] {
-  return drugs.filter((d) => d.stockQuantity <= d.reorderLevel)
+  return drugs.filter((d) => d.stockQuantity <= d.reorderPoint)
 }
 
 export function orderedPrescriptions(prescriptions: Prescription[]): Prescription[] {

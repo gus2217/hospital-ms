@@ -2,7 +2,8 @@ import { useEffect, type ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/store/authStore'
-import type { UserRole } from '@/types'
+import { hasPermission } from '@/lib/permissions'
+import type { Permission } from '@/types'
 
 /** Blocks unauthenticated access and redirects to /login, remembering where the user came from. */
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -15,22 +16,28 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-/** Blocks access unless the current user holds one of the allowed roles. */
-export function RequireRole({ roles, children }: { roles: UserRole[]; children: ReactNode }) {
+/** Blocks access unless the current user holds the required permission. */
+export function RequirePermission({
+  permission,
+  children,
+}: {
+  permission: Permission
+  children: ReactNode
+}) {
   const currentUser = useAuthStore((s) => s.currentUser)
   const location = useLocation()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (currentUser && !roles.includes(currentUser.role)) {
+    if (currentUser && !hasPermission(currentUser.role, permission)) {
       toast.error('You do not have permission to view that page.')
       navigate('/dashboard', { replace: true })
     }
-  }, [currentUser, roles, navigate])
+  }, [currentUser, permission, navigate])
 
   if (!currentUser) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
-  if (!roles.includes(currentUser.role)) return null
+  if (!hasPermission(currentUser.role, permission)) return null
   return <>{children}</>
 }

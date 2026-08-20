@@ -1,33 +1,45 @@
 import { create } from 'zustand'
 import type {
+  Admission,
   Appointment,
   Doctor,
   Drug,
   Invoice,
   InvoiceItem,
+  LabTest,
   MedicalRecord,
   Patient,
   Payment,
   Prescription,
+  StaffRecord,
   User,
+  Ward,
 } from '@/types'
 import {
+  AdmissionStatus,
   AppointmentStatus,
   InvoiceStatus,
+  LabTestStatus,
   PrescriptionStatus,
   UserRole,
 } from '@/types'
 import {
+  mockAdmissions,
   mockAppointments,
   mockDoctors,
   mockDrugs,
   mockInvoices,
+  mockLabTests,
   mockMedicalRecords,
   mockPatients,
   mockPayments,
   mockPrescriptions,
   mockStaff,
+  mockStaffRecords,
+  mockWards,
 } from '@/data/mock'
+import { useAuditStore } from '@/store/auditStore'
+import { useAuthStore } from '@/store/authStore'
 
 const TAX_RATE = 0.16
 
@@ -49,13 +61,30 @@ function computeTotals(items: InvoiceItem[]): {
   return { subTotal, tax, totalAmount: Math.round((subTotal + tax) * 100) / 100 }
 }
 
+/** Resolve the signed-in user id for audit trails (falls back to 'system'). */
+function currentUserId(): string {
+  return useAuthStore.getState().currentUser?.id ?? 'system'
+}
+
 export interface CompleteConsultationInput {
   diagnosis: string
   treatmentPlan: string
   clinicalNotes: string
+  consultationFee?: number
+  feeCurrency?: string
   prescription?: {
     items: { drugId: string; quantity: number; dosageInstructions: string }[]
   }
+  labTests?: { testName: string; testCategory: string }[]
+}
+
+export interface AdmitPatientInput {
+  patientId: string
+  wardId: string
+  admittingDoctorId?: string
+  diagnosis: string
+  expectedDischargeDate?: string
+  notes?: string
 }
 
 interface HospitalState {
@@ -68,6 +97,10 @@ interface HospitalState {
   prescriptions: Prescription[]
   invoices: Invoice[]
   payments: Payment[]
+  labTests: LabTest[]
+  wards: Ward[]
+  admissions: Admission[]
+  staffRecords: StaffRecord[]
 
   // ---- Patients ----
   addPatient: (p: Omit<Patient, 'id' | 'role' | 'password'>) => Patient
@@ -89,7 +122,7 @@ interface HospitalState {
   addMedicalRecord: (r: Omit<MedicalRecord, 'id' | 'version'>) => MedicalRecord
   updateMedicalRecord: (id: string, patch: Partial<MedicalRecord>) => void
   deleteMedicalRecord: (id: string) => void
-  /** Booking → Consultation: completes an appointment and writes a medical record (+ optional prescription). */
+  /** Booking → Consultation: completes an appointment and writes a medical record (+ optional prescription, fee invoice and lab orders). */
   completeConsultation: (
     appointmentId: string,
     doctorId: string,
@@ -121,6 +154,22 @@ interface HospitalState {
   deletePayment: (id: string) => void
   recordPayment: (invoiceId: string, amount: number, method: string) => Payment | undefined
 
+  // ---- Laboratory ----
+  addLabTest: (t: Omit<LabTest, 'id' | 'status' | 'orderedAt'>) => LabTest
+  updateLabTest: (id: string, patch: Partial<LabTest>) => void
+  deleteLabTest: (id: string) => void
+
+  // ---- Wards & admissions ----
+  addWard: (w: Omit<Ward, 'id'>) => Ward
+  updateWard: (id: string, patch: Partial<Ward>) => void
+  admitPatient: (input: AdmitPatientInput) => Admission | undefined
+  updateAdmission: (id: string, patch: Partial<Admission>) => void
+  dischargeAdmission: (id: string) => void
+
+  // ---- Staff records ----
+  addStaffRecord: (r: Omit<StaffRecord, 'id'> & { id: string }) => void
+  updateStaffRecord: (id: string, patch: Partial<StaffRecord>) => void
+
   resetDemo: () => void
 }
 
@@ -134,6 +183,10 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
   prescriptions: mockPrescriptions,
   invoices: mockInvoices,
   payments: mockPayments,
+  labTests: mockLabTests,
+  wards: mockWards,
+  admissions: mockAdmissions,
+  staffRecords: mockStaffRecords,
 
   // ---------------- Patients ----------------
   addPatient: (p) => {
@@ -144,6 +197,13 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
       password: 'patient123',
     }
     set((s) => ({ patients: [patient, ...s.patients] }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'CREATE_PATIENT',
+      entityType: 'Patient',
+      entityId: patient.id,
+      changes: `${patient.firstName} ${patient.lastName} registered`,
+    })
     return patient
   },
   updatePatient: (id, patch) =>
@@ -226,9 +286,32 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
       treatmentPlan: input.treatmentPlan,
       clinicalNotes: input.clinicalNotes,
       recordedAt: new Date().toISOString(),
+      consultationFee: input.consultationFee,
+      feeCurrency: input.feeCurrency ?? 'KES',
     })
 
     state.setAppointmentStatus(appointmentId, AppointmentStatus.Completed)
+
+    // Consultation fee → auto-invoice
+    if (input.consultationFee && input.consultationFee > 0) {
+      const feeItem: InvoiceItem = {
+        id: nextId('INVI', state.invoices.flatMap((i) => i.items)),
+        description: 'Consultation fee',
+        quantity: 1,
+        unitPrice: input.consultationFee,
+        totalPrice: input.consultationFee,
+        sourceReferenceId: record.id,
+        sourceType: 'Consultation',
+      }
+      state.addInvoice({
+        patientId: appointment.patientId,
+        issuedDate: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+        amountPaid: 0,
+        status: InvoiceStatus.Issued,
+        items: [feeItem],
+      })
+    }
 
     if (input.prescription && input.prescription.items.length > 0) {
       state.addPrescription({
@@ -241,6 +324,27 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
         })),
       })
     }
+
+    // Lab tests ordered during consultation
+    for (const test of input.labTests ?? []) {
+      state.addLabTest({
+        patientId: appointment.patientId,
+        doctorId,
+        appointmentId: appointment.id,
+        testName: test.testName,
+        testCategory: test.testCategory,
+      })
+    }
+
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'CREATE_MEDICAL_RECORD',
+      entityType: 'MedicalRecord',
+      entityId: record.id,
+      changes: `Consultation completed for ${appointment.patientId}${
+        input.consultationFee ? ` — fee KES ${input.consultationFee}` : ''
+      }`,
+    })
     return record
   },
 
@@ -248,21 +352,50 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
   addDrug: (d) => {
     const drug: Drug = { ...d, id: nextId('DRG', get().drugs) }
     set((s) => ({ drugs: [drug, ...s.drugs] }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'ADD_DRUG',
+      entityType: 'Drug',
+      entityId: drug.id,
+      changes: `${drug.name} added (${drug.stockQuantity} units)`,
+    })
     return drug
   },
-  updateDrug: (id, patch) =>
-    set((s) => ({ drugs: s.drugs.map((d) => (d.id === id ? { ...d, ...patch } : d)) })),
+  updateDrug: (id, patch) => {
+    set((s) => ({ drugs: s.drugs.map((d) => (d.id === id ? { ...d, ...patch } : d)) }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'UPDATE_DRUG',
+      entityType: 'Drug',
+      entityId: id,
+      changes: JSON.stringify(patch),
+    })
+  },
   deleteDrug: (id) => {
     const inUse = get().prescriptions.some((p) => p.items.some((i) => i.drugId === id))
     if (inUse) return
     set((s) => ({ drugs: s.drugs.filter((d) => d.id !== id) }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'DELETE_DRUG',
+      entityType: 'Drug',
+      entityId: id,
+    })
   },
-  restockDrug: (id, quantity) =>
+  restockDrug: (id, quantity) => {
     set((s) => ({
       drugs: s.drugs.map((d) =>
         d.id === id ? { ...d, stockQuantity: d.stockQuantity + quantity } : d,
       ),
-    })),
+    }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'RESTOCK_DRUG',
+      entityType: 'Drug',
+      entityId: id,
+      changes: `+${quantity} units`,
+    })
+  },
 
   // ---------------- Prescriptions ----------------
   addPrescription: (p) => {
@@ -328,6 +461,14 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
       status: InvoiceStatus.Issued,
       items,
       ...totals,
+    })
+
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'DISPENSE_PRESCRIPTION',
+      entityType: 'Prescription',
+      entityId: id,
+      changes: `Dispensed by ${pharmacistId}; invoice issued for ${record.patientId}`,
     })
   },
 
@@ -399,8 +540,147 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
           : InvoiceStatus.Issued
 
     state.updateInvoice(invoiceId, { amountPaid, status })
+
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'RECORD_PAYMENT',
+      entityType: 'Invoice',
+      entityId: invoiceId,
+      changes: `KES ${amount} via ${method} — invoice ${status}`,
+    })
     return payment
   },
+
+  // ---------------- Laboratory ----------------
+  addLabTest: (t) => {
+    const test: LabTest = {
+      ...t,
+      id: nextId('LT', get().labTests),
+      status: LabTestStatus.Ordered,
+      orderedAt: new Date().toISOString(),
+    }
+    set((s) => ({ labTests: [test, ...s.labTests] }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'ORDER_LAB_TEST',
+      entityType: 'LabTest',
+      entityId: test.id,
+      changes: `${test.testName} (${test.testCategory}) ordered for ${test.patientId}`,
+    })
+    return test
+  },
+  updateLabTest: (id, patch) => {
+    const existing = get().labTests.find((t) => t.id === id)
+    set((s) => ({
+      labTests: s.labTests.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              ...patch,
+              ...(patch.status === LabTestStatus.Completed && !t.completedAt
+                ? { completedAt: new Date().toISOString(), performedBy: currentUserId() }
+                : {}),
+            }
+          : t,
+      ),
+    }))
+    if (existing && patch.status === LabTestStatus.Completed) {
+      useAuditStore.getState().logAudit({
+        userId: currentUserId(),
+        action: 'UPDATE_LAB_RESULT',
+        entityType: 'LabTest',
+        entityId: id,
+        changes: `Result entered — ${patch.result ?? 'completed'}${patch.isAbnormal ? ' (abnormal)' : ''}`,
+      })
+    }
+  },
+  deleteLabTest: (id) =>
+    set((s) => ({ labTests: s.labTests.filter((t) => t.id !== id) })),
+
+  // ---------------- Wards & admissions ----------------
+  addWard: (w) => {
+    const ward: Ward = { ...w, id: nextId('WRD', get().wards) }
+    set((s) => ({ wards: [ward, ...s.wards] }))
+    return ward
+  },
+  updateWard: (id, patch) =>
+    set((s) => ({ wards: s.wards.map((w) => (w.id === id ? { ...w, ...patch } : w)) })),
+
+  admitPatient: (input) => {
+    const state = get()
+    const ward = state.wards.find((w) => w.id === input.wardId)
+    if (!ward) return undefined
+
+    const active = state.admissions.filter(
+      (a) => a.wardId === input.wardId && a.status === AdmissionStatus.Active,
+    )
+    const usedBeds = new Set(active.map((a) => a.bedNumber))
+    if (usedBeds.size >= ward.totalBeds) return undefined
+
+    let bedNumber = 1
+    while (usedBeds.has(bedNumber)) bedNumber += 1
+
+    const admission: Admission = {
+      id: nextId('ADM', state.admissions),
+      patientId: input.patientId,
+      wardId: input.wardId,
+      bedNumber,
+      admittedAt: new Date().toISOString(),
+      expectedDischargeDate: input.expectedDischargeDate,
+      status: AdmissionStatus.Active,
+      admittingDoctorId: input.admittingDoctorId,
+      diagnosis: input.diagnosis,
+      notes: input.notes,
+    }
+    set((s) => ({ admissions: [admission, ...s.admissions] }))
+
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'ADMIT_PATIENT',
+      entityType: 'Admission',
+      entityId: admission.id,
+      changes: `${input.patientId} admitted to ${ward.name} bed ${bedNumber}`,
+    })
+    return admission
+  },
+  updateAdmission: (id, patch) => {
+    set((s) => ({
+      admissions: s.admissions.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+    }))
+    if (patch.notes) {
+      useAuditStore.getState().logAudit({
+        userId: currentUserId(),
+        action: 'UPDATE_NURSING_NOTES',
+        entityType: 'Admission',
+        entityId: id,
+        changes: 'Nursing notes updated',
+      })
+    }
+  },
+  dischargeAdmission: (id) => {
+    set((s) => ({
+      admissions: s.admissions.map((a) =>
+        a.id === id
+          ? { ...a, status: AdmissionStatus.Discharged, actualDischargeDate: new Date().toISOString() }
+          : a,
+      ),
+    }))
+    useAuditStore.getState().logAudit({
+      userId: currentUserId(),
+      action: 'DISCHARGE_PATIENT',
+      entityType: 'Admission',
+      entityId: id,
+      changes: 'Patient discharged — bed released',
+    })
+  },
+
+  // ---------------- Staff records ----------------
+  addStaffRecord: (r) =>
+    set((s) => ({ staffRecords: [r as StaffRecord, ...s.staffRecords] })),
+  updateStaffRecord: (id, patch) =>
+    set((s) => ({
+      staffRecords: s.staffRecords.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    })),
 
   resetDemo: () =>
     set({
@@ -413,5 +693,9 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
       prescriptions: mockPrescriptions,
       invoices: mockInvoices,
       payments: mockPayments,
+      labTests: mockLabTests,
+      wards: mockWards,
+      admissions: mockAdmissions,
+      staffRecords: mockStaffRecords,
     }),
 }))

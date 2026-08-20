@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/types'
 import { UserRole } from '@/types'
-import { mockDoctors, mockStaff } from '@/data/mock'
+import { mockDoctors, mockPatients, mockStaff } from '@/data/mock'
+import { useAuditStore } from '@/store/auditStore'
 
 export interface RegisterInput {
   firstName: string
@@ -24,8 +25,10 @@ interface AuthState {
   logout: () => void
 }
 
-/** Seeded accounts: staff + doctors. Patients are not part of the staff console. */
-const seededUsers: User[] = [...mockStaff, ...mockDoctors]
+/**
+ * Seeded accounts: staff + doctors + patients (patients get the self-service portal).
+ */
+const seededUsers: User[] = [...mockStaff, ...mockDoctors, ...mockPatients]
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -38,12 +41,35 @@ export const useAuthStore = create<AuthState>()(
           (u) => u.email.toLowerCase() === email.trim().toLowerCase(),
         )
         if (!user) {
+          useAuditStore.getState().logAudit({
+            userId: 'unknown',
+            action: 'FAILED_LOGIN',
+            entityType: 'User',
+            entityId: email.trim().toLowerCase(),
+            changes: 'No account found',
+            flagged: true,
+          })
           return { ok: false, error: 'No account found with that email.' }
         }
         if (user.password !== password) {
+          useAuditStore.getState().logAudit({
+            userId: user.id,
+            action: 'FAILED_LOGIN',
+            entityType: 'User',
+            entityId: user.id,
+            changes: 'Incorrect password',
+            flagged: true,
+          })
           return { ok: false, error: 'Incorrect password. Please try again.' }
         }
         set({ currentUser: user })
+        useAuditStore.getState().logAudit({
+          userId: user.id,
+          action: 'LOGIN',
+          entityType: 'User',
+          entityId: user.id,
+          changes: 'Successful sign-in',
+        })
         return { ok: true }
       },
 
@@ -78,7 +104,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ currentUser: null }),
     }),
     {
-      name: 'medicore-auth',
+      // v2: expanded seeds (patients + Lab Technician) — fresh key discards stale sessions.
+      name: 'medicore-auth-v2',
       partialize: (state) => ({ users: state.users, currentUser: state.currentUser }),
     },
   ),

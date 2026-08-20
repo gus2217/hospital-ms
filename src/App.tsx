@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAuth, RequireRole } from '@/components/auth/RequireAuth'
+import { RequireAuth, RequirePermission } from '@/components/auth/RequireAuth'
 import { useAuthStore } from '@/store/authStore'
-import { UserRole } from '@/types'
+import { Permission, UserRole } from '@/types'
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 import Dashboard from '@/pages/Dashboard'
@@ -14,12 +14,27 @@ import Doctors from '@/pages/Doctors'
 import MedicalRecords from '@/pages/MedicalRecords'
 import Pharmacy from '@/pages/Pharmacy'
 import Billing from '@/pages/Billing'
+import Lab from '@/pages/Lab'
+import Wards from '@/pages/Wards'
+import Staff from '@/pages/Staff'
+import Reports from '@/pages/Reports'
+import AuditLogs from '@/pages/AuditLogs'
+import PharmacyTracking from '@/pages/PharmacyTracking'
+import Consultation from '@/pages/Consultation'
+import PatientPortal from '@/pages/PatientPortal'
 
 /** Keeps signed-in users away from the public login/register screens. */
 function PublicOnly({ children }: { children: ReactNode }) {
   const currentUser = useAuthStore((s) => s.currentUser)
   if (currentUser) return <Navigate to="/dashboard" replace />
   return <>{children}</>
+}
+
+/** Patients land on their self-service portal instead of the staff dashboard. */
+function DashboardRoute() {
+  const role = useAuthStore((s) => s.currentUser?.role)
+  if (role === UserRole.Patient) return <Navigate to="/portal" replace />
+  return <Dashboard />
 }
 
 export default function App() {
@@ -51,53 +66,124 @@ export default function App() {
           }
         >
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route
+            path="/dashboard"
+            element={
+              <RequirePermission permission={Permission.VIEW_DASHBOARD}>
+                <DashboardRoute />
+              </RequirePermission>
+            }
+          />
           <Route
             path="/appointments"
             element={
-              <RequireRole roles={[UserRole.Admin, UserRole.Doctor, UserRole.Receptionist, UserRole.Nurse]}>
+              <RequirePermission permission={Permission.VIEW_APPOINTMENTS}>
                 <Appointments />
-              </RequireRole>
+              </RequirePermission>
             }
           />
           <Route
             path="/patients"
             element={
-              <RequireRole roles={[UserRole.Admin, UserRole.Doctor, UserRole.Receptionist, UserRole.Nurse]}>
+              <RequirePermission permission={Permission.VIEW_PATIENTS}>
                 <Patients />
-              </RequireRole>
+              </RequirePermission>
             }
           />
           <Route
             path="/doctors"
             element={
-              <RequireRole roles={[UserRole.Admin, UserRole.Doctor]}>
+              <RequirePermission permission={Permission.VIEW_DOCTORS}>
                 <Doctors />
-              </RequireRole>
+              </RequirePermission>
             }
           />
           <Route
             path="/records"
             element={
-              <RequireRole roles={[UserRole.Admin, UserRole.Doctor, UserRole.Nurse]}>
+              <RequirePermission permission={Permission.VIEW_MEDICAL_RECORDS}>
                 <MedicalRecords />
-              </RequireRole>
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/consultation"
+            element={
+              <RequirePermission permission={Permission.VIEW_CONSULTATION}>
+                <Consultation />
+              </RequirePermission>
             }
           />
           <Route
             path="/pharmacy"
             element={
-              <RequireRole roles={[UserRole.Admin, UserRole.Pharmacist]}>
+              <RequirePermission permission={Permission.VIEW_PHARMACY}>
                 <Pharmacy />
-              </RequireRole>
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/pharmacy-tracking"
+            element={
+              <RequirePermission permission={Permission.VIEW_DRUG_TRACKING}>
+                <PharmacyTracking />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/lab"
+            element={
+              <RequirePermission permission={Permission.VIEW_LAB}>
+                <Lab />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/wards"
+            element={
+              <RequirePermission permission={Permission.VIEW_WARDS}>
+                <Wards />
+              </RequirePermission>
             }
           />
           <Route
             path="/billing"
             element={
-              <RequireRole roles={[UserRole.Admin, UserRole.Receptionist]}>
+              <RequirePermission permission={Permission.VIEW_BILLING}>
                 <Billing />
-              </RequireRole>
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/staff"
+            element={
+              <RequirePermission permission={Permission.VIEW_STAFF}>
+                <Staff />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <RequirePermission permission={Permission.VIEW_REPORTS}>
+                <Reports />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/audit-logs"
+            element={
+              <RequirePermission permission={Permission.VIEW_AUDIT_LOGS}>
+                <AuditLogs />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/portal"
+            element={
+              <RequirePermission permission={Permission.PATIENT_SELF_SERVICE}>
+                <PatientPortal />
+              </RequirePermission>
             }
           />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -1,6 +1,8 @@
 import {
+  AdmissionStatus,
   AppointmentStatus,
   InvoiceStatus,
+  LabTestStatus,
   PrescriptionStatus,
 } from '@/types'
 import type { VariantProps } from 'class-variance-authority'
@@ -37,6 +39,25 @@ export const invoiceStatusStyle: Record<
   [InvoiceStatus.Issued]: { variant: 'info', dot: 'bg-sky-500' },
   [InvoiceStatus.Paid]: { variant: 'success', dot: 'bg-emerald-500' },
   [InvoiceStatus.Overdue]: { variant: 'destructive', dot: 'bg-red-500' },
+}
+
+export const labTestStatusStyle: Record<
+  LabTestStatus,
+  { variant: BadgeVariant; dot: string }
+> = {
+  [LabTestStatus.Ordered]: { variant: 'info', dot: 'bg-sky-500' },
+  [LabTestStatus.InProgress]: { variant: 'violet', dot: 'bg-violet-500' },
+  [LabTestStatus.Completed]: { variant: 'success', dot: 'bg-emerald-500' },
+  [LabTestStatus.Cancelled]: { variant: 'slate', dot: 'bg-slate-400' },
+}
+
+export const admissionStatusStyle: Record<
+  AdmissionStatus,
+  { variant: BadgeVariant; dot: string }
+> = {
+  [AdmissionStatus.Active]: { variant: 'success', dot: 'bg-emerald-500' },
+  [AdmissionStatus.Discharged]: { variant: 'slate', dot: 'bg-slate-400' },
+  [AdmissionStatus.Cancelled]: { variant: 'destructive', dot: 'bg-red-500' },
 }
 
 export function paymentMethodLabel(method: string): string {

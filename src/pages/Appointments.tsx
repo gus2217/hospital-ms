@@ -9,12 +9,12 @@ import {
   MoreHorizontal,
   Pencil,
   PlayCircle,
-  Plus,
   Trash2,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DataTable } from '@/components/DataTable'
+import { ConsultationDialog } from '@/components/consultation/ConsultationDialog'
 import { PageHeader, StatusBadge } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -48,7 +48,6 @@ import { useHospitalStore } from '@/store/hospitalStore'
 import {
   AppointmentStatus,
   type Appointment,
-  type PrescriptionItem,
 } from '@/types'
 import { formatTime, relativeDayLabel } from '@/lib/format'
 import { fullName, useEntityMaps } from '@/lib/useEntities'
@@ -222,212 +221,6 @@ function AppointmentFormDialog({
           </Button>
           <Button onClick={handleSave} disabled={!valid}>
             {editing ? 'Save changes' : 'Book appointment'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-interface RxDraftItem {
-  drugId: string
-  quantity: number
-  dosageInstructions: string
-}
-
-function ConsultationDialog({
-  appointment,
-  open,
-  onOpenChange,
-}: {
-  appointment: Appointment | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const { doctorById, patientById, drugs } = useEntityMaps()
-  const completeConsultation = useHospitalStore((s) => s.completeConsultation)
-
-  const [diagnosis, setDiagnosis] = useState('')
-  const [treatmentPlan, setTreatmentPlan] = useState('')
-  const [clinicalNotes, setClinicalNotes] = useState('')
-  const [withRx, setWithRx] = useState(true)
-  const [rxItems, setRxItems] = useState<RxDraftItem[]>([
-    { drugId: '', quantity: 1, dosageInstructions: '' },
-  ])
-
-  const valid = diagnosis.trim() && treatmentPlan.trim() && clinicalNotes.trim()
-  const rxValid = !withRx || rxItems.every((i) => i.drugId && i.quantity > 0)
-
-  function handleComplete() {
-    if (!appointment || !valid || !rxValid) return
-    const rx = withRx
-      ? {
-          items: rxItems
-            .filter((i) => i.drugId)
-            .map(
-              (i): PrescriptionItem => ({
-                id: `draft-${i.drugId}-${i.quantity}`,
-                drugId: i.drugId,
-                quantity: i.quantity,
-                dosageInstructions: i.dosageInstructions || 'As directed by physician.',
-              }),
-            ),
-        }
-      : undefined
-
-    completeConsultation(appointment.id, appointment.doctorId, {
-      diagnosis: diagnosis.trim(),
-      treatmentPlan: treatmentPlan.trim(),
-      clinicalNotes: clinicalNotes.trim(),
-      prescription: rx,
-    })
-    toast.success(`Consultation completed for ${fullName(patientById, appointment.patientId)}.`)
-    onOpenChange(false)
-    setDiagnosis('')
-    setTreatmentPlan('')
-    setClinicalNotes('')
-    setRxItems([{ drugId: '', quantity: 1, dosageInstructions: '' }])
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Complete consultation</DialogTitle>
-          <DialogDescription>
-            {appointment
-              ? `${fullName(patientById, appointment.patientId)} with ${fullName(doctorById, appointment.doctorId)}`
-              : ''}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid max-h-[55vh] gap-4 overflow-y-auto pr-1">
-          <div className="grid gap-2">
-            <Label htmlFor="cx-diagnosis">Diagnosis</Label>
-            <Input
-              id="cx-diagnosis"
-              value={diagnosis}
-              onChange={(e) => setDiagnosis(e.target.value)}
-              placeholder="e.g. Acute sinusitis"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="cx-plan">Treatment plan</Label>
-            <Textarea
-              id="cx-plan"
-              value={treatmentPlan}
-              onChange={(e) => setTreatmentPlan(e.target.value)}
-              placeholder="Medications, follow-up, lifestyle advice…"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="cx-notes">Clinical notes</Label>
-            <Textarea
-              id="cx-notes"
-              value={clinicalNotes}
-              onChange={(e) => setClinicalNotes(e.target.value)}
-              placeholder="Objective findings, vitals, observations…"
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
-            <div>
-              <p className="text-sm font-medium">Issue prescription</p>
-              <p className="text-muted-foreground text-xs">
-                Forward to pharmacy for dispensing and billing
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant={withRx ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setWithRx((v) => !v)}
-            >
-              {withRx ? 'Enabled' : 'Disabled'}
-            </Button>
-          </div>
-
-          {withRx && (
-            <div className="space-y-3 rounded-lg border p-3">
-              {rxItems.map((item, idx) => (
-                <div key={idx} className="grid gap-2 sm:grid-cols-[1fr_80px_1fr_auto]">
-                  <Select
-                    value={item.drugId}
-                    onValueChange={(v) =>
-                      setRxItems((items) =>
-                        items.map((it, i) => (i === idx ? { ...it, drugId: v } : it)),
-                      )
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Drug" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {drugs.map((drug) => (
-                        <SelectItem key={drug.id} value={drug.id}>
-                          {drug.name} ({drug.stockQuantity} in stock)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={item.quantity}
-                    onChange={(e) =>
-                      setRxItems((items) =>
-                        items.map((it, i) =>
-                          i === idx ? { ...it, quantity: Number(e.target.value) } : it,
-                        ),
-                      )
-                    }
-                    placeholder="Qty"
-                  />
-                  <Input
-                    value={item.dosageInstructions}
-                    onChange={(e) =>
-                      setRxItems((items) =>
-                        items.map((it, i) =>
-                          i === idx ? { ...it, dosageInstructions: e.target.value } : it,
-                        ),
-                      )
-                    }
-                    placeholder="Dosage instructions"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setRxItems((items) => items.filter((_, i) => i !== idx))}
-                    disabled={rxItems.length === 1}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setRxItems((items) => [
-                    ...items,
-                    { drugId: '', quantity: 1, dosageInstructions: '' },
-                  ])
-                }
-              >
-                <Plus /> Add item
-              </Button>
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleComplete} disabled={!valid || !rxValid}>
-            <CheckCircle2 /> Complete & record
           </Button>
         </DialogFooter>
       </DialogContent>

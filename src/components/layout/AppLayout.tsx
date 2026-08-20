@@ -4,15 +4,22 @@ import {
   CalendarDays,
   CircleUserRound,
   ClipboardList,
+  ClipboardPlus,
   CreditCard,
+  FileBarChart2,
+  FlaskConical,
   LayoutDashboard,
   LogOut,
   Pill,
   RotateCcw,
+  ScrollText,
   Stethoscope,
   Users,
   HeartPulse,
   Bell,
+  BedDouble,
+  UserCog,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -30,79 +37,155 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { useHospitalStore } from '@/store/hospitalStore'
 import { useAuthStore } from '@/store/authStore'
-import { UserRole } from '@/types'
+import { hasPermission } from '@/lib/permissions'
+import { ROLE_LABELS } from '@/lib/roles'
+import { Permission } from '@/types'
 import { initials } from '@/lib/format'
 import { toast } from 'sonner'
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  [UserRole.Admin]: 'Administrator',
-  [UserRole.Doctor]: 'Doctor',
-  [UserRole.Pharmacist]: 'Pharmacist',
-  [UserRole.Receptionist]: 'Receptionist',
-  [UserRole.Nurse]: 'Nurse',
-  [UserRole.Patient]: 'Patient',
-}
 
 interface NavItem {
   to: string
   label: string
   icon: LucideIcon
-  roles: UserRole[]
+  permission: Permission
 }
 
-const navigation: NavItem[] = [
+interface NavSection {
+  section: string
+  items: NavItem[]
+}
+
+const navigation: NavSection[] = [
   {
-    to: '/dashboard',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Pharmacist, UserRole.Receptionist, UserRole.Nurse],
+    section: 'Overview',
+    items: [
+      {
+        to: '/dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        permission: Permission.VIEW_DASHBOARD,
+      },
+    ],
   },
   {
-    to: '/appointments',
-    label: 'Appointments',
-    icon: CalendarDays,
-    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Receptionist, UserRole.Nurse],
+    section: 'Clinical',
+    items: [
+      {
+        to: '/appointments',
+        label: 'Appointments',
+        icon: CalendarDays,
+        permission: Permission.VIEW_APPOINTMENTS,
+      },
+      {
+        to: '/patients',
+        label: 'Patients',
+        icon: Users,
+        permission: Permission.VIEW_PATIENTS,
+      },
+      {
+        to: '/doctors',
+        label: 'Doctors',
+        icon: Stethoscope,
+        permission: Permission.VIEW_DOCTORS,
+      },
+      {
+        to: '/records',
+        label: 'Medical Records',
+        icon: ClipboardList,
+        permission: Permission.VIEW_MEDICAL_RECORDS,
+      },
+      {
+        to: '/consultation',
+        label: 'Consultation',
+        icon: ClipboardPlus,
+        permission: Permission.VIEW_CONSULTATION,
+      },
+    ],
   },
   {
-    to: '/patients',
-    label: 'Patients',
-    icon: Users,
-    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Receptionist, UserRole.Nurse],
+    section: 'Operations',
+    items: [
+      {
+        to: '/pharmacy',
+        label: 'Pharmacy',
+        icon: Pill,
+        permission: Permission.VIEW_PHARMACY,
+      },
+      {
+        to: '/pharmacy-tracking',
+        label: 'Pharmacy Tracking',
+        icon: FileBarChart2,
+        permission: Permission.VIEW_DRUG_TRACKING,
+      },
+      {
+        to: '/lab',
+        label: 'Laboratory',
+        icon: FlaskConical,
+        permission: Permission.VIEW_LAB,
+      },
+      {
+        to: '/wards',
+        label: 'Wards & Admissions',
+        icon: BedDouble,
+        permission: Permission.VIEW_WARDS,
+      },
+      {
+        to: '/billing',
+        label: 'Billing',
+        icon: CreditCard,
+        permission: Permission.VIEW_BILLING,
+      },
+    ],
   },
   {
-    to: '/doctors',
-    label: 'Doctors',
-    icon: Stethoscope,
-    roles: [UserRole.Admin, UserRole.Doctor],
+    section: 'Administration',
+    items: [
+      {
+        to: '/staff',
+        label: 'Staff Management',
+        icon: UserCog,
+        permission: Permission.VIEW_STAFF,
+      },
+      {
+        to: '/reports',
+        label: 'Reports & Analytics',
+        icon: FileBarChart2,
+        permission: Permission.VIEW_REPORTS,
+      },
+      {
+        to: '/audit-logs',
+        label: 'Audit Logs',
+        icon: ScrollText,
+        permission: Permission.VIEW_AUDIT_LOGS,
+      },
+    ],
   },
   {
-    to: '/records',
-    label: 'Medical Records',
-    icon: ClipboardList,
-    roles: [UserRole.Admin, UserRole.Doctor, UserRole.Nurse],
-  },
-  {
-    to: '/pharmacy',
-    label: 'Pharmacy',
-    icon: Pill,
-    roles: [UserRole.Admin, UserRole.Pharmacist],
-  },
-  {
-    to: '/billing',
-    label: 'Billing',
-    icon: CreditCard,
-    roles: [UserRole.Admin, UserRole.Receptionist],
+    section: 'Portal',
+    items: [
+      {
+        to: '/portal',
+        label: 'Patient Portal',
+        icon: UserRound,
+        permission: Permission.PATIENT_SELF_SERVICE,
+      },
+    ],
   },
 ]
 
 function Sidebar() {
   const currentUser = useAuthStore((s) => s.currentUser)
   const lowStockCount = useHospitalStore((s) =>
-    s.drugs.filter((d) => d.stockQuantity <= d.reorderLevel).length,
+    s.drugs.filter((d) => d.stockQuantity <= d.reorderPoint).length,
   )
 
-  const visibleNav = currentUser
-    ? navigation.filter((item) => item.roles.includes(currentUser.role))
+  const visibleSections = currentUser
+    ? navigation
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => hasPermission(currentUser.role, item.permission)),
+        }))
+        .filter((section) => section.items.length > 0)
     : []
 
   return (
@@ -119,29 +202,38 @@ function Sidebar() {
 
       <Separator className="bg-sidebar-border/60" />
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {visibleNav.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              cn(
-                'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive && 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm',
-              )
-            }
-          >
-            <Icon className="size-[18px] shrink-0" />
-            <span className="flex-1">{label}</span>
-            {label === 'Pharmacy' && lowStockCount > 0 && (
-              <Badge
-                variant="destructive"
-                className="rounded-full px-1.5 py-0 text-[10px] font-bold"
-              >
-                {lowStockCount}
-              </Badge>
-            )}
-          </NavLink>
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+        {visibleSections.map(({ section, items }) => (
+          <div key={section}>
+            <p className="text-sidebar-foreground/40 px-3 pb-1.5 text-[10px] font-semibold tracking-widest uppercase">
+              {section}
+            </p>
+            <div className="space-y-1">
+              {items.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    cn(
+                      'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      isActive && 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm',
+                    )
+                  }
+                >
+                  <Icon className="size-[18px] shrink-0" />
+                  <span className="flex-1">{label}</span>
+                  {label === 'Pharmacy' && lowStockCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="rounded-full px-1.5 py-0 text-[10px] font-bold"
+                    >
+                      {lowStockCount}
+                    </Badge>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

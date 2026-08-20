@@ -202,8 +202,8 @@ function Sidebar() {
           <HeartPulse className="size-5 text-white" />
         </div>
         <div>
-          <p className="text-sm leading-tight font-bold tracking-tight">MediCore HMS</p>
-          <p className="text-sidebar-foreground/50 text-[11px]">Hospital Management System</p>
+          <p className="text-sm leading-tight font-bold tracking-tight">HRMS</p>
+          <p className="text-sidebar-foreground/50 text-[11px]">St. Francis Health Services</p>
         </div>
       </div>
 
@@ -281,7 +281,7 @@ function Topbar() {
       <div className="lg:hidden">
         <NavLink to="/dashboard" className="text-primary flex items-center gap-2 font-bold">
           <HeartPulse className="size-5" />
-          <span>MediCore</span>
+          <span>HRMS</span>
         </NavLink>
       </div>
       <p className="text-muted-foreground hidden text-sm sm:block">{today}</p>
@@ -350,7 +350,7 @@ export function AppLayout() {
           <Outlet />
         </main>
         <footer className="text-muted-foreground border-t px-6 py-4 text-center text-xs">
-          MediCore HMS · Booking → Consultation → Pharmacy → Billing · Demo build with mock data
+          St. Francis Health Services · HRMS · Level 3 Facility · Demo build
         </footer>
       </div>
     </div>

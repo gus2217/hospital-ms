@@ -104,8 +104,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ currentUser: null }),
     }),
     {
-      // v2: expanded seeds (patients + Lab Technician) — fresh key discards stale sessions.
-      name: 'medicore-auth-v2',
+      // v3: SRS roles (Records Officer, Cashier, Store Keeper, Accountant, CEO).
+      name: 'medicore-auth-v3',
       partialize: (state) => ({ users: state.users, currentUser: state.currentUser }),
     },
   ),

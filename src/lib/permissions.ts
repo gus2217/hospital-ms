@@ -71,6 +71,40 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_LAB,
     Permission.MANAGE_LAB_TESTS,
   ],
+  [UserRole.RecordsOfficer]: [
+    Permission.VIEW_DASHBOARD,
+    Permission.VIEW_PATIENTS,
+    Permission.MANAGE_PATIENTS,
+    Permission.VIEW_PATIENT_360,
+  ],
+  [UserRole.Cashier]: [
+    Permission.VIEW_DASHBOARD,
+    Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
+    Permission.VIEW_BILLING,
+    Permission.RECORD_PAYMENT,
+    Permission.MANAGE_INVOICES,
+  ],
+  [UserRole.StoreKeeper]: [
+    Permission.VIEW_DASHBOARD,
+    Permission.VIEW_PHARMACY,
+    Permission.MANAGE_INVENTORY,
+    Permission.VIEW_DRUG_TRACKING,
+  ],
+  [UserRole.Accountant]: [
+    Permission.VIEW_DASHBOARD,
+    Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
+    Permission.VIEW_BILLING,
+    Permission.RECORD_PAYMENT,
+    Permission.MANAGE_INVOICES,
+  ],
+  [UserRole.CEO]: [
+    Permission.VIEW_DASHBOARD,
+    Permission.VIEW_PATIENTS,
+    Permission.VIEW_PATIENT_360,
+    Permission.VIEW_BILLING,
+  ],
   [UserRole.Patient]: [Permission.VIEW_DASHBOARD, Permission.PATIENT_SELF_SERVICE],
 }
 

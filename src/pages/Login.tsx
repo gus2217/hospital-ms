@@ -61,8 +61,8 @@ export default function Login() {
             <HeartPulse className="size-6" />
           </div>
           <div>
-            <p className="text-lg font-bold tracking-tight">MediCore HMS</p>
-            <p className="text-white/60 text-xs">Hospital Management System</p>
+            <p className="text-lg font-bold tracking-tight">HRMS</p>
+            <p className="text-white/60 text-xs">St. Francis Health Services · Health Records Management System</p>
           </div>
         </div>
 
@@ -99,8 +99,8 @@ export default function Login() {
               <HeartPulse className="size-6 text-white" />
             </div>
             <div>
-              <p className="font-bold tracking-tight">MediCore HMS</p>
-              <p className="text-muted-foreground text-xs">Hospital Management System</p>
+              <p className="font-bold tracking-tight">HRMS</p>
+              <p className="text-muted-foreground text-xs">St. Francis Health Services · Health Records Management System</p>
             </div>
           </div>
 

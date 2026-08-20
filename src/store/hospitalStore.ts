@@ -51,6 +51,17 @@ function nextId(prefix: string, items: { id: string }[]): string {
   return `${prefix}-${String(max + 1).padStart(3, '0')}`
 }
 
+/** SRS — sequential facility patient number, e.g. PT-2026-0007. */
+function nextPatientNumber(patients: Patient[]): string {
+  const year = new Date().getFullYear()
+  const max = patients.reduce((acc, p) => {
+    const match = p.patientNumber?.match(/(\d+)$/)
+    const num = match ? parseInt(match[1], 10) : 0
+    return Number.isNaN(num) ? acc : Math.max(acc, num)
+  }, 0)
+  return `PT-${year}-${String(max + 1).padStart(4, '0')}`
+}
+
 function computeTotals(items: InvoiceItem[]): {
   subTotal: number
   tax: number
@@ -103,7 +114,7 @@ interface HospitalState {
   staffRecords: StaffRecord[]
 
   // ---- Patients ----
-  addPatient: (p: Omit<Patient, 'id' | 'role' | 'password'>) => Patient
+  addPatient: (p: Omit<Patient, 'id' | 'role' | 'password' | 'patientNumber'>) => Patient
   updatePatient: (id: string, patch: Partial<Patient>) => void
   deletePatient: (id: string) => void
 
@@ -193,6 +204,7 @@ export const useHospitalStore = create<HospitalState>()((set, get) => ({
     const patient: Patient = {
       ...p,
       id: nextId('PAT', get().patients),
+      patientNumber: nextPatientNumber(get().patients),
       role: UserRole.Patient,
       password: 'patient123',
     }

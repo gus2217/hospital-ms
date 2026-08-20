@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+  AlertTriangle,
   BedDouble,
   CalendarDays,
   Clock3,
@@ -291,23 +292,52 @@ export default function Patient360() {
                       {patient.firstName} {patient.lastName}
                     </h2>
                     <Badge variant="outline" className="font-mono">
+                      {patient.patientNumber}
+                    </Badge>
+                    <Badge variant="secondary" className="font-mono">
                       {patient.id}
                     </Badge>
                   </div>
                   <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                    <span>{ageFrom(patient.dateOfBirth)} years · {formatDate(patient.dateOfBirth)}</span>
+                    <span>{ageFrom(patient.dateOfBirth)} years · {patient.gender} · {formatDate(patient.dateOfBirth)}</span>
                     <span className="flex items-center gap-1">
                       <Phone className="size-3" /> {patient.phoneNumber ?? '—'}
                     </span>
                     <span>{patient.email}</span>
+                    <span>
+                      {patient.idType} · {patient.idNumber}
+                    </span>
                   </div>
                   <div className="text-muted-foreground mt-1 text-xs">
-                    Emergency contact: <span className="font-medium">{patient.emergencyContact}</span>
-                    {patient.insurancePolicyNumber && (
-                      <span className="ml-3">
-                        Insurance: <span className="font-medium">{patient.insurancePolicyNumber}</span>
-                      </span>
+                    Next of kin:{' '}
+                    <span className="font-medium">
+                      {patient.nextOfKinName} ({patient.nextOfKinRelationship}) · {patient.nextOfKinPhone}
+                    </span>
+                    {patient.shaLicenseNumber && (
+                      <span className="ml-3">SHA: <span className="font-medium">{patient.shaLicenseNumber}</span></span>
                     )}
+                    {patient.insurancePolicyNumber && (
+                      <span className="ml-3">Cover: <span className="font-medium">{patient.insurancePolicyNumber}</span></span>
+                    )}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {patient.allergies && (
+                      <Badge variant="destructive" className="gap-1">
+                        <AlertTriangle className="size-3" /> {patient.allergies}
+                      </Badge>
+                    )}
+                    {patient.chronicIllnesses?.map((c) => (
+                      <Badge key={c} variant="warning">{c}</Badge>
+                    ))}
+                    {patient.disability && (
+                      <Badge variant="secondary">{patient.disability}</Badge>
+                    )}
+                    <Badge variant={patient.consentToTreat ? 'success' : 'destructive'}>
+                      {patient.consentToTreat ? 'Treatment consent ✓' : 'No treatment consent'}
+                    </Badge>
+                    <Badge variant={patient.consentToShare ? 'success' : 'slate'}>
+                      {patient.consentToShare ? 'Info sharing ✓' : 'No info sharing'}
+                    </Badge>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">

@@ -24,13 +24,21 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Avatar,
   AvatarFallback,
 } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { useHospitalStore } from '@/store/hospitalStore'
-import type { Patient } from '@/types'
+import type { Patient, PatientGender, PatientIdType } from '@/types'
 import { formatCurrency, formatDate, hashHue, initials } from '@/lib/format'
 import {
   fullName,
@@ -41,14 +49,29 @@ import {
 import { appointmentStatusStyle, invoiceStatusStyle } from '@/lib/status'
 import { AppointmentStatus } from '@/types'
 
+const ID_TYPES: PatientIdType[] = ['ID', 'Passport', 'BirthCertificate', 'Other']
+const GENDERS: PatientGender[] = ['Male', 'Female', 'Other']
+
 interface PatientDraft {
   firstName: string
   lastName: string
   email: string
   phoneNumber: string
   dateOfBirth: string
+  gender: PatientGender
   emergencyContact: string
   insurancePolicyNumber: string
+  idType: PatientIdType
+  idNumber: string
+  shaLicenseNumber: string
+  nextOfKinName: string
+  nextOfKinPhone: string
+  nextOfKinRelationship: string
+  allergies: string
+  chronicIllnesses: string
+  disability: string
+  consentToTreat: boolean
+  consentToShare: boolean
 }
 
 const emptyDraft: PatientDraft = {
@@ -57,8 +80,20 @@ const emptyDraft: PatientDraft = {
   email: '',
   phoneNumber: '',
   dateOfBirth: '',
+  gender: 'Female',
   emergencyContact: '',
   insurancePolicyNumber: '',
+  idType: 'ID',
+  idNumber: '',
+  shaLicenseNumber: '',
+  nextOfKinName: '',
+  nextOfKinPhone: '',
+  nextOfKinRelationship: '',
+  allergies: '',
+  chronicIllnesses: '',
+  disability: '',
+  consentToTreat: false,
+  consentToShare: false,
 }
 
 function ageFrom(dob: string): number {
@@ -78,6 +113,7 @@ function PatientFormDialog({
 }) {
   const addPatient = useHospitalStore((s) => s.addPatient)
   const updatePatient = useHospitalStore((s) => s.updatePatient)
+  const patients = useHospitalStore((s) => s.patients)
 
   const [draft, setDraft] = useState<PatientDraft>(
     editing
@@ -87,102 +123,325 @@ function PatientFormDialog({
           email: editing.email,
           phoneNumber: editing.phoneNumber ?? '',
           dateOfBirth: editing.dateOfBirth,
+          gender: editing.gender,
           emergencyContact: editing.emergencyContact,
           insurancePolicyNumber: editing.insurancePolicyNumber ?? '',
+          idType: editing.idType,
+          idNumber: editing.idNumber,
+          shaLicenseNumber: editing.shaLicenseNumber ?? '',
+          nextOfKinName: editing.nextOfKinName,
+          nextOfKinPhone: editing.nextOfKinPhone,
+          nextOfKinRelationship: editing.nextOfKinRelationship,
+          allergies: editing.allergies ?? '',
+          chronicIllnesses: (editing.chronicIllnesses ?? []).join(', '),
+          disability: editing.disability ?? '',
+          consentToTreat: editing.consentToTreat,
+          consentToShare: editing.consentToShare,
         }
       : emptyDraft,
   )
 
-  const valid = draft.firstName.trim() && draft.lastName.trim() && draft.email.trim()
+  const valid =
+    draft.firstName.trim() &&
+    draft.lastName.trim() &&
+    draft.email.trim() &&
+    draft.dateOfBirth &&
+    draft.gender &&
+    draft.idNumber.trim() &&
+    draft.nextOfKinName.trim() &&
+    draft.nextOfKinPhone.trim() &&
+    draft.consentToTreat
 
   function handleSave() {
     if (!valid) return
+
+    // SRS — duplicate detection: same national ID or phone number already on file.
+    const dup = patients.find(
+      (p) =>
+        p.id !== editing?.id &&
+        (p.idNumber.toLowerCase() === draft.idNumber.trim().toLowerCase() ||
+          (p.phoneNumber &&
+            draft.phoneNumber.trim() &&
+            p.phoneNumber.replace(/\D/g, '') === draft.phoneNumber.replace(/\D/g, ''))),
+    )
+    if (dup) {
+      toast.error(
+        `Duplicate patient detected — this ID/phone already belongs to ${dup.firstName} ${dup.lastName} (${dup.patientNumber}).`,
+      )
+      return
+    }
+    const payload = {
+      ...draft,
+      firstName: draft.firstName.trim(),
+      lastName: draft.lastName.trim(),
+      email: draft.email.trim(),
+      idNumber: draft.idNumber.trim(),
+      phoneNumber: draft.phoneNumber.trim() || undefined,
+      insurancePolicyNumber: draft.insurancePolicyNumber.trim() || undefined,
+      shaLicenseNumber: draft.shaLicenseNumber.trim() || undefined,
+      nextOfKinName: draft.nextOfKinName.trim(),
+      nextOfKinPhone: draft.nextOfKinPhone.trim(),
+      nextOfKinRelationship: draft.nextOfKinRelationship.trim() || 'Other',
+      allergies: draft.allergies.trim() || undefined,
+      chronicIllnesses:
+        draft.chronicIllnesses
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean) || undefined,
+      disability: draft.disability.trim() || undefined,
+    }
     if (editing) {
-      updatePatient(editing.id, {
-        ...draft,
-        phoneNumber: draft.phoneNumber || undefined,
-        insurancePolicyNumber: draft.insurancePolicyNumber || undefined,
-      })
+      updatePatient(editing.id, payload)
       toast.success(`Patient ${editing.id} updated.`)
     } else {
-      const p = addPatient({
-        ...draft,
-        phoneNumber: draft.phoneNumber || undefined,
-        insurancePolicyNumber: draft.insurancePolicyNumber || undefined,
-      })
-      toast.success(`Patient ${p.id} registered.`)
+      const p = addPatient(payload)
+      toast.success(
+        `Patient ${p.patientNumber} registered — ${p.firstName} ${p.lastName}.`,
+      )
     }
     onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? `Edit ${editing.id}` : 'Register new patient'}</DialogTitle>
-          <DialogDescription>Patient demographics and contact details.</DialogDescription>
+          <DialogDescription>
+            St. Francis Health Services — full demographic, identification, next-of-kin and
+            consent record (SRS compliant).
+          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label>First name</Label>
-            <Input
-              value={draft.firstName}
-              onChange={(e) => setDraft((d) => ({ ...d, firstName: e.target.value }))}
-              placeholder="Amina"
-            />
+
+        <div className="grid gap-5">
+          {/* Demographics */}
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+              Demographics
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>First name *</Label>
+                <Input
+                  value={draft.firstName}
+                  onChange={(e) => setDraft((d) => ({ ...d, firstName: e.target.value }))}
+                  placeholder="Amina"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Last name *</Label>
+                <Input
+                  value={draft.lastName}
+                  onChange={(e) => setDraft((d) => ({ ...d, lastName: e.target.value }))}
+                  placeholder="Wanjiru"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Date of birth *</Label>
+                <Input
+                  type="date"
+                  value={draft.dateOfBirth}
+                  onChange={(e) => setDraft((d) => ({ ...d, dateOfBirth: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Gender *</Label>
+                <Select
+                  value={draft.gender}
+                  onValueChange={(v) => setDraft((d) => ({ ...d, gender: v as PatientGender }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GENDERS.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Phone</Label>
+                <Input
+                  value={draft.phoneNumber}
+                  onChange={(e) => setDraft((d) => ({ ...d, phoneNumber: e.target.value }))}
+                  placeholder="+2547…"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={draft.email}
+                  onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
+                  placeholder="patient@example.com"
+                />
+              </div>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label>Last name</Label>
-            <Input
-              value={draft.lastName}
-              onChange={(e) => setDraft((d) => ({ ...d, lastName: e.target.value }))}
-              placeholder="Wanjiru"
-            />
+
+          <Separator />
+
+          {/* Identification & cover */}
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+              Identification & cover
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>ID type *</Label>
+                <Select
+                  value={draft.idType}
+                  onValueChange={(v) => setDraft((d) => ({ ...d, idType: v as PatientIdType }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ID_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t === 'BirthCertificate' ? 'Birth Certificate' : t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>ID number *</Label>
+                <Input
+                  value={draft.idNumber}
+                  onChange={(e) => setDraft((d) => ({ ...d, idNumber: e.target.value }))}
+                  placeholder="33445566"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>SHA / NHIF licence</Label>
+                <Input
+                  value={draft.shaLicenseNumber}
+                  onChange={(e) => setDraft((d) => ({ ...d, shaLicenseNumber: e.target.value }))}
+                  placeholder="SHA-00000000"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Insurance policy number</Label>
+                <Input
+                  value={draft.insurancePolicyNumber}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, insurancePolicyNumber: e.target.value }))
+                  }
+                  placeholder="NHIF-000000"
+                />
+              </div>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={draft.email}
-              onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
-              placeholder="patient@example.com"
-            />
+
+          <Separator />
+
+          {/* Next of kin */}
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+              Next of kin
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Full name *</Label>
+                <Input
+                  value={draft.nextOfKinName}
+                  onChange={(e) => setDraft((d) => ({ ...d, nextOfKinName: e.target.value }))}
+                  placeholder="John Wanjiru"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Phone *</Label>
+                <Input
+                  value={draft.nextOfKinPhone}
+                  onChange={(e) => setDraft((d) => ({ ...d, nextOfKinPhone: e.target.value }))}
+                  placeholder="+2547…"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Relationship</Label>
+                <Input
+                  value={draft.nextOfKinRelationship}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, nextOfKinRelationship: e.target.value }))
+                  }
+                  placeholder="Spouse, parent, sibling…"
+                />
+              </div>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label>Phone</Label>
-            <Input
-              value={draft.phoneNumber}
-              onChange={(e) => setDraft((d) => ({ ...d, phoneNumber: e.target.value }))}
-              placeholder="+2547…"
-            />
+
+          <Separator />
+
+          {/* Medical profile */}
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+              Medical profile
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Allergies</Label>
+                <Input
+                  value={draft.allergies}
+                  onChange={(e) => setDraft((d) => ({ ...d, allergies: e.target.value }))}
+                  placeholder="e.g. Penicillin"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Chronic illnesses</Label>
+                <Input
+                  value={draft.chronicIllnesses}
+                  onChange={(e) => setDraft((d) => ({ ...d, chronicIllnesses: e.target.value }))}
+                  placeholder="Comma-separated, e.g. Asthma, Hypertension"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Disability</Label>
+                <Input
+                  value={draft.disability}
+                  onChange={(e) => setDraft((d) => ({ ...d, disability: e.target.value }))}
+                  placeholder="e.g. Mobility impairment (leave blank if none)"
+                />
+              </div>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label>Date of birth</Label>
-            <Input
-              type="date"
-              value={draft.dateOfBirth}
-              onChange={(e) => setDraft((d) => ({ ...d, dateOfBirth: e.target.value }))}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Emergency contact</Label>
-            <Input
-              value={draft.emergencyContact}
-              onChange={(e) => setDraft((d) => ({ ...d, emergencyContact: e.target.value }))}
-              placeholder="+2547…"
-            />
-          </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <Label>Insurance policy number</Label>
-            <Input
-              value={draft.insurancePolicyNumber}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, insurancePolicyNumber: e.target.value }))
-              }
-              placeholder="NHIF-000000"
-            />
+
+          <Separator />
+
+          {/* Consents */}
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+              Consent
+            </p>
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="consent-treat"
+                  checked={draft.consentToTreat}
+                  onCheckedChange={(v) => setDraft((d) => ({ ...d, consentToTreat: Boolean(v) }))}
+                />
+                <Label htmlFor="consent-treat" className="leading-snug">
+                  I consent to medical examination and treatment at this facility. *
+                </Label>
+              </div>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="consent-share"
+                  checked={draft.consentToShare}
+                  onCheckedChange={(v) => setDraft((d) => ({ ...d, consentToShare: Boolean(v) }))}
+                />
+                <Label htmlFor="consent-share" className="leading-snug">
+                  I consent to sharing my health information with SHA / authorised insurers for
+                  claims processing.
+                </Label>
+              </div>
+            </div>
           </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -233,8 +492,8 @@ function PatientDetailDialog({
                 {patient.firstName} {patient.lastName}
               </DialogTitle>
               <DialogDescription>
-                {patient.id} · {ageFrom(patient.dateOfBirth)} yrs ·{' '}
-                {formatDate(patient.dateOfBirth)}
+                {patient.patientNumber} · {patient.id} · {ageFrom(patient.dateOfBirth)} yrs ·{' '}
+                {patient.gender} · {formatDate(patient.dateOfBirth)}
               </DialogDescription>
             </div>
           </div>
@@ -243,16 +502,22 @@ function PatientDetailDialog({
         <div className="grid max-h-[55vh] gap-5 overflow-y-auto pr-1">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <p className="text-muted-foreground text-xs">Email</p>
-              <p className="font-medium">{patient.email}</p>
+              <p className="text-muted-foreground text-xs">Identification</p>
+              <p className="font-medium">
+                {patient.idType} · {patient.idNumber}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">SHA / NHIF</p>
+              {patient.shaLicenseNumber ? (
+                <Badge variant="info">{patient.shaLicenseNumber}</Badge>
+              ) : (
+                <p className="font-medium">—</p>
+              )}
             </div>
             <div>
               <p className="text-muted-foreground text-xs">Phone</p>
               <p className="font-medium">{patient.phoneNumber ?? '—'}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs">Emergency contact</p>
-              <p className="font-medium">{patient.emergencyContact ?? '—'}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs">Insurance</p>
@@ -261,6 +526,63 @@ function PatientDetailDialog({
               ) : (
                 <p className="font-medium">Self-pay</p>
               )}
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Email</p>
+              <p className="font-medium">{patient.email}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Emergency contact</p>
+              <p className="font-medium">{patient.emergencyContact ?? '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-muted-foreground text-xs">Next of kin</p>
+              <p className="font-medium">
+                {patient.nextOfKinName} · {patient.nextOfKinRelationship} ·{' '}
+                {patient.nextOfKinPhone}
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs">Allergies</p>
+              {patient.allergies ? (
+                <Badge variant="destructive">{patient.allergies}</Badge>
+              ) : (
+                <p className="font-medium">None recorded</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Chronic illnesses</p>
+              {patient.chronicIllnesses && patient.chronicIllnesses.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {patient.chronicIllnesses.map((c) => (
+                    <Badge key={c} variant="warning">
+                      {c}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="font-medium">None recorded</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Disability</p>
+              <p className="font-medium">{patient.disability ?? 'None recorded'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Consent</p>
+              <div className="flex flex-wrap gap-1">
+                <Badge variant={patient.consentToTreat ? 'success' : 'destructive'}>
+                  {patient.consentToTreat ? 'Treatment ✓' : 'No treatment'}
+                </Badge>
+                <Badge variant={patient.consentToShare ? 'success' : 'slate'}>
+                  {patient.consentToShare ? 'Share info ✓' : 'No sharing'}
+                </Badge>
+              </div>
             </div>
           </div>
 
@@ -365,10 +687,12 @@ export default function Patients() {
   const columns = useMemo<AppColumnDef<Patient>[]>(
     () => [
       {
-        accessorKey: 'id',
-        header: 'ID',
+        accessorKey: 'patientNumber',
+        header: 'Patient No.',
         cell: ({ row }) => (
-          <span className="font-mono text-xs font-semibold text-teal-700">{row.original.id}</span>
+          <span className="font-mono text-xs font-semibold text-teal-700">
+            {row.original.patientNumber}
+          </span>
         ),
       },
       {
@@ -393,7 +717,7 @@ export default function Patients() {
                 <p className="font-medium">
                   {p.firstName} {p.lastName}
                 </p>
-                <p className="text-muted-foreground text-xs">{p.email}</p>
+                <p className="text-muted-foreground text-xs">{p.id}</p>
               </div>
             </div>
           )
@@ -406,20 +730,22 @@ export default function Patients() {
       },
       {
         accessorKey: 'dateOfBirth',
-        header: 'Age',
+        header: 'Age / Gender',
         cell: ({ row }) => (
           <div>
-            <p>{ageFrom(row.original.dateOfBirth)} yrs</p>
+            <p>{ageFrom(row.original.dateOfBirth)} yrs · {row.original.gender}</p>
             <p className="text-muted-foreground text-xs">{formatDate(row.original.dateOfBirth)}</p>
           </div>
         ),
       },
       {
         accessorKey: 'insurancePolicyNumber',
-        header: 'Insurance',
+        header: 'Cover',
         cell: ({ row }) =>
-          row.original.insurancePolicyNumber ? (
-            <Badge variant="info">{row.original.insurancePolicyNumber}</Badge>
+          row.original.shaLicenseNumber ? (
+            <Badge variant="info">{row.original.shaLicenseNumber}</Badge>
+          ) : row.original.insurancePolicyNumber ? (
+            <Badge variant="secondary">{row.original.insurancePolicyNumber}</Badge>
           ) : (
             <Badge variant="slate">Self-pay</Badge>
           ),
@@ -492,7 +818,7 @@ export default function Patients() {
     <div className="space-y-6">
       <PageHeader
         title="Patients"
-        description="Patient registry with full demographic, insurance and visit data."
+        description="St. Francis patient registry — demographics, identification, cover and consent."
       >
         <Button
           onClick={() => {
@@ -509,11 +835,13 @@ export default function Patients() {
           columns={columns}
           data={patients}
           getRowId={(p) => p.id}
-          searchPlaceholder="Search name, email, phone or ID…"
+          searchPlaceholder="Search name, patient no., phone, ID or cover…"
           globalFilter={(p, term) =>
             `${p.firstName} ${p.lastName}`.toLowerCase().includes(term) ||
             p.email.toLowerCase().includes(term) ||
             (p.phoneNumber ?? '').toLowerCase().includes(term) ||
+            p.patientNumber.toLowerCase().includes(term) ||
+            p.idNumber.toLowerCase().includes(term) ||
             p.id.toLowerCase().includes(term) ||
             (p.insurancePolicyNumber ?? '').toLowerCase().includes(term)
           }

@@ -30,6 +30,11 @@ const STAFF_ROLES = [
   { value: UserRole.Nurse, label: 'Nurse' },
   { value: UserRole.Pharmacist, label: 'Pharmacist' },
   { value: UserRole.Doctor, label: 'Doctor' },
+  { value: UserRole.LabTechnician, label: 'Lab Technician' },
+  { value: UserRole.RecordsOfficer, label: 'Records Officer' },
+  { value: UserRole.Cashier, label: 'Cashier' },
+  { value: UserRole.StoreKeeper, label: 'Store Keeper' },
+  { value: UserRole.Accountant, label: 'Accountant' },
   { value: UserRole.Admin, label: 'Administrator' },
 ]
 
@@ -98,14 +103,14 @@ export default function Register() {
             <HeartPulse className="size-6" />
           </div>
           <div>
-            <p className="text-lg font-bold tracking-tight">MediCore HMS</p>
-            <p className="text-white/60 text-xs">Hospital Management System</p>
+            <p className="text-lg font-bold tracking-tight">HRMS</p>
+            <p className="text-white/60 text-xs">St. Francis Health Services · Health Records Management System</p>
           </div>
         </div>
 
         <div className="relative space-y-4">
           <h1 className="max-w-md text-3xl leading-tight font-bold">
-            Join the MediCore team.
+            Join the St. Francis team.
           </h1>
           <p className="max-w-md text-sm leading-relaxed text-white/70">
             Register a staff account and get instant role-based access to the tools you need —
@@ -137,8 +142,8 @@ export default function Register() {
               <HeartPulse className="size-6 text-white" />
             </div>
             <div>
-              <p className="font-bold tracking-tight">MediCore HMS</p>
-              <p className="text-muted-foreground text-xs">Hospital Management System</p>
+              <p className="font-bold tracking-tight">HRMS</p>
+              <p className="text-muted-foreground text-xs">St. Francis Health Services · Health Records Management System</p>
             </div>
           </div>
 

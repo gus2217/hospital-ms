@@ -16,7 +16,9 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  Banknote,
   BedDouble,
+  Boxes,
   CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
@@ -27,6 +29,7 @@ import {
   Receipt,
   UserPlus,
   Users,
+  UserSearch,
   type LucideIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -69,6 +72,11 @@ const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.Receptionist]: 'Receptionist',
   [UserRole.Nurse]: 'Nurse',
   [UserRole.LabTechnician]: 'Lab Technician',
+  [UserRole.RecordsOfficer]: 'Records Officer',
+  [UserRole.Cashier]: 'Cashier',
+  [UserRole.StoreKeeper]: 'Store Keeper',
+  [UserRole.Accountant]: 'Accountant',
+  [UserRole.CEO]: 'Chief Executive Officer',
   [UserRole.Patient]: 'Patient',
 }
 
@@ -102,6 +110,11 @@ const ROLE_QUICK_ACTIONS: Record<UserRole, { label: string; to: string; icon: Lu
   [UserRole.Receptionist]: [{ label: 'Register patient', to: '/patients', icon: UserPlus }],
   [UserRole.Nurse]: [{ label: "Today's schedule", to: '/appointments', icon: CalendarDays }],
   [UserRole.LabTechnician]: [{ label: 'Process tests', to: '/lab', icon: FlaskConical }],
+  [UserRole.RecordsOfficer]: [{ label: 'Register patient', to: '/patients', icon: UserPlus }],
+  [UserRole.Cashier]: [{ label: 'Record payment', to: '/billing', icon: Banknote }],
+  [UserRole.StoreKeeper]: [{ label: 'Manage inventory', to: '/pharmacy', icon: Boxes }],
+  [UserRole.Accountant]: [{ label: 'Open billing', to: '/billing', icon: Receipt }],
+  [UserRole.CEO]: [{ label: 'Patient lookup', to: '/patient-360', icon: UserSearch }],
   [UserRole.Patient]: [],
 }
 
@@ -801,6 +814,7 @@ export default function Dashboard() {
           role={role}
           lowStock={lowStock}
           records={stats.myRecords}
+          allRecords={medicalRecords}
           payments={payments}
           labTests={labTests}
           wards={wards}
@@ -817,6 +831,7 @@ function RoleFocusCard({
   role,
   lowStock,
   records,
+  allRecords,
   payments,
   labTests,
   wards,
@@ -827,6 +842,7 @@ function RoleFocusCard({
   role: UserRole
   lowStock: ReturnType<typeof lowStockDrugs>
   records: ReturnType<typeof useEntityMaps>['medicalRecords']
+  allRecords: ReturnType<typeof useEntityMaps>['medicalRecords']
   payments: ReturnType<typeof useEntityMaps>['payments']
   labTests: ReturnType<typeof useEntityMaps>['labTests']
   wards: ReturnType<typeof useEntityMaps>['wards']
@@ -1100,8 +1116,9 @@ function RoleFocusCard({
     )
   }
 
-  // ---- Doctor: recent consultations ----
-  const recent = records.slice()
+  // ---- Generic staff: recent consultations ----
+  const recent = (role === UserRole.Doctor ? records : allRecords)
+    .slice()
     .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())
     .slice(0, 4)
 
@@ -1110,9 +1127,13 @@ function RoleFocusCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <FileText className="text-sky-500 size-4" />
-          My recent consultations
+          {role === UserRole.Doctor ? 'My recent consultations' : 'Recent consultations'}
         </CardTitle>
-        <CardDescription>Latest records you authored</CardDescription>
+        <CardDescription>
+          {role === UserRole.Doctor
+            ? 'Latest records you authored'
+            : 'Latest medical records across the facility'}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {recent.length === 0 ? (

@@ -9,6 +9,11 @@ export enum UserRole {
   Receptionist = 'Receptionist',
   Nurse = 'Nurse',
   LabTechnician = 'LabTechnician',
+  RecordsOfficer = 'RecordsOfficer',
+  Cashier = 'Cashier',
+  StoreKeeper = 'StoreKeeper',
+  Accountant = 'Accountant',
+  CEO = 'CEO',
   // Kept for the patient data model — patient records still carry this role.
   Patient = 'Patient',
 }
@@ -108,10 +113,30 @@ export interface User {
   hireDate?: string
 }
 
+export type PatientIdType = 'ID' | 'Passport' | 'BirthCertificate' | 'Other'
+
+export type PatientGender = 'Male' | 'Female' | 'Other'
+
 export interface Patient extends User {
   dateOfBirth: string
+  gender: PatientGender
   emergencyContact: string
   insurancePolicyNumber?: string
+  /** SRS — unique facility patient number, auto-generated (e.g. PT-2026-0001). */
+  patientNumber: string
+  idType: PatientIdType
+  idNumber: string
+  /** SHA (Social Health Authority) / NHIF licence number. */
+  shaLicenseNumber?: string
+  nextOfKinName: string
+  nextOfKinPhone: string
+  nextOfKinRelationship: string
+  allergies?: string
+  chronicIllnesses?: string[]
+  disability?: string
+  consentToTreat: boolean
+  consentToShare: boolean
+  photoUrl?: string
 }
 
 export interface Doctor extends User {
